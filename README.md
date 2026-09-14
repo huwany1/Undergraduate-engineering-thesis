@@ -1,93 +1,115 @@
+<div align="center">
+
 # 基于 YOLOv8 人体姿态识别的运动检测设计与实现
 
-> **毕业设计项目** —— 融合 YOLOv8 目标检测、DeepSORT 多目标跟踪与 MediaPipe 人体姿态估计的智能运动检测系统。
+**行人检测 · 多目标跟踪 · 越线计数 · 区域告警 · 人体姿态估计**
 
----
+![Python](https://img.shields.io/badge/Python-3.10.19-3776AB?style=flat-square&logo=python&logoColor=white)
+![YOLOv8](https://img.shields.io/badge/YOLO-v8-00FFFF?style=flat-square&logo=yolo&logoColor=111111)
+![DeepSORT](https://img.shields.io/badge/Tracking-DeepSORT-6C5CE7?style=flat-square)
+![MediaPipe](https://img.shields.io/badge/Pose-MediaPipe-00A67E?style=flat-square)
+![uv](https://img.shields.io/badge/Env-uv-DE5FE9?style=flat-square)
 
-## 目录
+毕业设计原型：以 YOLOv8 完成目标检测，以 DeepSORT 维护目标轨迹，<br>
+并提供人流计数、区域入侵告警及独立的人体姿态可视化示例。
 
-- [项目概述](#项目概述)
-- [整体架构](#整体架构)
-- [模块说明](#模块说明)
-  - [1. humandetection — 行人检测数据集](#1-humandetection--行人检测数据集)
-  - [2. yolov8-deepsort — 行人检测与跟踪](#2-yolov8-deepsort--行人检测与跟踪)
-  - [3. mediapipe-plot-pose-live-main — 人体姿态估计](#3-mediapipe-plot-pose-live-main--人体姿态估计)
-- [环境依赖与安装](#环境依赖与安装)
-- [各模块运行方法](#各模块运行方法)
-  - [行人检测与跟踪（demo.py）](#行人检测与跟踪-demopy)
-  - [行人计数（count.py）](#行人计数-countpy)
-  - [区域入侵检测（zone.py）](#区域入侵检测-zonepy)
-  - [人体姿态估计（example.py）](#人体姿态估计-examplepy)
-- [端到端完整流程指南](#端到端完整流程指南)
-- [目录结构](#目录结构)
-- [常见问题](#常见问题)
+[项目概述](#项目概述) · [系统架构](#系统架构) · [快速开始](#快速开始) · [运行示例](#各模块运行方法) · [常见问题](#常见问题)
 
----
+</div>
+
+> [!IMPORTANT]
+> `yolov8-deepsort` 是当前检测与跟踪主流程；`mediapipe-plot-pose-live-main` 是可独立运行的姿态估计示例，尚未接入主流程。
 
 ## 项目概述
 
-本项目设计并实现了一套**基于计算机视觉的运动检测系统**，核心技术栈包括：
+本项目设计并实现了一套基于计算机视觉的运动检测原型。它由三个边界清晰的模块组成，既可以分别演示，也便于继续扩展和集成。
+
+| 🚶 检测与跟踪 | 📈 场景分析 | 🦴 姿态估计 |
+| :---: | :---: | :---: |
+| YOLOv8 检测目标，DeepSORT 分配并维护 ID | 支持双向越线计数与多边形区域告警 | MediaPipe 提取 33 个关键点并进行 3D 可视化 |
+
+### 技术栈
 
 | 技术 | 用途 | 版本 |
 |------|------|------|
-| **YOLOv8** | 行人/车辆目标检测 | Ultralytics YOLOv8 |
-| **DeepSORT** | 多目标跟踪与 ID 分配 | DeepSORT |
-| **MediaPipe Pose** | 人体 33 个关键点姿态估计 | 0.10.21–0.10.29 |
-| **OpenCV** | 图像处理与视频 I/O | 4.x |
-| **Matplotlib** | 3D 姿态可视化 | 3.6.x |
+| YOLOv8 | 行人/车辆目标检测 | Ultralytics 8.x |
+| DeepSORT | 多目标跟踪与 ID 分配 | 项目内置实现 |
+| MediaPipe Pose | 人体 33 个关键点姿态估计 | 0.10.21–0.10.29 |
+| OpenCV | 图像处理与视频 I/O | 4.x |
+| Matplotlib | 3D 姿态可视化 | 3.6–3.x |
 
-**核心功能：**
+### 核心功能
+
 - 🚶 行人实时检测与多目标跟踪
 - 📊 跨线人流量统计（上行/下行计数）
 - 🚨 敏感区域入侵检测与告警
 - 🏃 人体 3D 姿态关键点实时估计与可视化
 - 📹 视频输入/输出支持，检测结果可回放
 
----
+### 效果预览
 
-## 整体架构
+<table>
+  <tr>
+    <td align="center"><b>行人标注与轨迹 ID</b></td>
+    <td align="center"><b>MediaPipe 3D 姿态</b></td>
+  </tr>
+  <tr>
+    <td><img src="humandetection/boxes/frame_000020.PNG" alt="行人边界框标注效果" width="100%"></td>
+    <td><img src="mediapipe-plot-pose-live-main/cxk5result.jpg" alt="MediaPipe 三维姿态可视化效果" width="100%"></td>
+  </tr>
+</table>
 
+## 系统架构
+
+```mermaid
+flowchart LR
+    subgraph OFFLINE[离线数据与训练]
+        DATA[(CVAT 标注数据<br/>annotations.xml + images)]
+        TRAIN[YOLOv8 训练 / 微调]
+        WEIGHTS[(模型权重)]
+        DATA --> TRAIN --> WEIGHTS
+    end
+
+    VIDEO[视频流 / 视频文件]
+
+    subgraph ONLINE[检测与跟踪主流程]
+        DETECT[YOLOv8<br/>目标检测]
+        TRACK[DeepSORT<br/>轨迹与 ID]
+        DEMO[轨迹演示<br/>demo.py]
+        COUNT[越线计数<br/>count.py]
+        ZONE[区域告警<br/>zone.py]
+
+        DETECT --> TRACK
+        TRACK --> DEMO
+        TRACK --> COUNT
+        TRACK --> ZONE
+    end
+
+    IMAGE[图片]
+    POSE[MediaPipe Pose<br/>33 个关键点]
+    PLOT[Matplotlib<br/>3D 姿态图]
+
+    WEIGHTS --> DETECT
+    VIDEO --> DETECT
+    IMAGE --> POSE --> PLOT
+
+    classDef data fill:#E8F4FF,stroke:#228BE6,color:#102A43;
+    classDef core fill:#F3EEFF,stroke:#7950F2,color:#2B1B54;
+    classDef feature fill:#EAFBF1,stroke:#20A464,color:#123C2A;
+    class DATA,WEIGHTS data;
+    class TRAIN,DETECT,TRACK,POSE core;
+    class DEMO,COUNT,ZONE,PLOT feature;
 ```
-┌──────────────────────────────────────────────────────────┐
-│                      输入：视频流 / 图片                    │
-└──────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────┐
-│              模块一：humandetection（离线训练）              │
-│  - 标注数据集（annotations.xml + 图片）                     │
-│  - 用于训练/微调 YOLOv8 行人检测模型                        │
-└──────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────┐
-│           模块二：yolov8-deepsort（在线推理）               │
-│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐ │
-│  │ objdetector │→│  objtracker  │→│ count.py (计数)  │ │
-│  │ (YOLOv8)    │ │  (DeepSORT)  │  │ zone.py (区域)   │ │
-│  └─────────────┘  └──────────────┘  │ demo.py (演示)   │ │
-│                                      └─────────────────┘ │
-└──────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────┐
-│      模块三：mediapipe-plot-pose-live-main（姿态估计）      │
-│  - MediaPipe Pose 关键点提取（33 个 3D 关键点）             │
-│  - Matplotlib 3D 实时姿态可视化                            │
-└──────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────┐
-│                 输出：检测框 / 轨迹 / 计数 / 姿态图           │
-└──────────────────────────────────────────────────────────┘
-```
 
-**模块间协作关系：**
-1. `humandetection` 提供标注数据，用于训练 YOLOv8 行人检测模型；
-2. 训练好的 YOLOv8 模型权重放入 `yolov8-deepsort/weights/`，供 `objdetector.py` 加载；
-3. `objdetector.py` 输出的检测框传给 `objtracker.py`（DeepSORT），实现多目标跟踪；
-4. `count.py` 和 `zone.py` 在跟踪结果之上实现业务逻辑（人流量统计、区域告警）；
-5. `mediapipe-plot-pose-live-main` 可独立运行，或与检测跟踪模块串联（先检测行人 ROI，再做姿态估计）。
+| 阶段 | 输入 | 处理 | 输出 |
+|---|---|---|---|
+| 数据准备 | CVAT XML、连续帧图片 | 格式转换、数据划分、可选训练 | YOLOv8 权重 |
+| 在线推理 | 视频流或视频文件 | YOLOv8 检测 → DeepSORT 跟踪 | 检测框、目标 ID、轨迹 |
+| 场景分析 | 跟踪结果 | 越线判断或区域包含判断 | 双向计数、入侵告警 |
+| 姿态示例 | 单张图片 | MediaPipe Pose → Matplotlib | 33 个关键点、3D 姿态图 |
+
+> [!NOTE]
+> 图中的离线训练是可选流程；仓库已包含预训练权重，可直接运行检测与跟踪示例。姿态估计目前作为独立入口运行。
 
 ---
 
@@ -182,16 +204,17 @@ mp_pose.Pose(
 
 ---
 
-## 环境依赖与安装
+## 快速开始
 
-本项目由 `uv` 统一管理 Python、虚拟环境、依赖解析、锁定、同步与命令运行：
+使用 [uv](https://docs.astral.sh/uv/) 即可一次性准备固定版本的 Python 与全部依赖：
 
 ```bash
 uv python install 3.10.19
 uv sync --locked
 ```
 
-唯一依赖声明是根目录 `pyproject.toml`，精确解析结果记录在 `uv.lock`，Python 版本由 `.python-version` 固定为 3.10.19。不要手动创建或激活虚拟环境，也不要使用 `pip install` 修改环境；`uv sync` 会创建并精确同步根目录 `.venv`。
+> [!TIP]
+> 无需手动创建或激活虚拟环境。依赖声明位于 `pyproject.toml`，解析结果锁定在 `uv.lock`，`uv sync` 会自动创建并同步根目录下的 `.venv`。
 
 ### 系统要求
 
