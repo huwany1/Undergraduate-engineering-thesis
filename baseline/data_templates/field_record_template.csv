@@ -1,0 +1,3 @@
+sample_id,source_video_id,operator,recorded_at,camera_profile_id,view_orientation,optical_height_cm,distance_m,lighting_condition,is_full_body_standing,is_full_body_bottom,zero_bystanders,field_result,exclusion_reason
+SMP-SQUAT-2026-001,VID-REC-20260918-01,Op_Zhang,2026-09-18 14:30,CAM-SIDE-FIXED-v1.0,right_side_sagittal,90.5,3.02,stable_diffused,PASS,PASS,PASS,PASS,NONE
+SMP-SQUAT-2026-002,VID-REC-20260918-02,Op_Zhang,2026-09-18 14:45,CAM-SIDE-FIXED-v1.0,right_side_sagittal,90.0,3.00,stable_diffused,PASS,FAIL,PASS,FAIL,OUT_OF_FRAME_FEET

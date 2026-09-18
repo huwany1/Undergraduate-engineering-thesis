@@ -1,0 +1,54 @@
+# ==============================================================================
+# P0 数据集规范与标注手册契约 (Dataset Manifest & Label Guide)
+# Baseline ID: P0-SQUAT-SIDE-OFFLINE-v1.0
+# ==============================================================================
+
+dataset_manifest_version: "DS-MANIFEST-v1.0"
+label_guide_version: "LABEL-GUIDE-v1.0"
+effective_date: "2026-09-18"
+owner: "配置与数据管理员"
+
+split_discipline:
+  isolation_level: "subject_pseudonym_and_session_isolated"
+  leakage_prevention_policy:
+    - "校准集与验证集必须按受试者代号（subject_pseudonym）与录制会话（session）进行绝对物理隔离。"
+    - "同一受试者或同一会话的视频严禁跨子集出现。"
+    - "严禁根据验证集测试结果反向回调校准集工程阈值。"
+
+subsets:
+  calibration_set:
+    role: "工程参数标定"
+    allowed_content:
+      - "正常动作受控样例（用于校准周期与特征基准线）"
+      - "浅蹲受控样例（用于标定 R-DEPTH-001 边界阈值）"
+      - "大前倾受控样例（用于标定 R-LEAN-001 边界阈值）"
+    prohibited_uses:
+      - "严禁用于对外宣称算法性能指标"
+  validation_set:
+    role: "独立一致性验证"
+    allowed_content:
+      - "与校准集完全隔离的新受试者独立深蹲视频"
+    evaluation_targets:
+      - "次数判定绝对误差（MAE）"
+      - "动作阶段识别一致率"
+      - "规则原因码命中一致率"
+    prohibited_uses:
+      - "严禁用于调整或优化算法参数"
+  invalid_set:
+    role: "安全门控拒绝能力检验"
+    allowed_content:
+      - "NO_PERSON（空镜头测试）"
+      - "MULTI_PERSON（背景多人走动模拟）"
+      - "OUT_OF_FRAME（脚部触底出框或头部出框）"
+      - "LOW_VISIBILITY（暗光/遮挡模拟）"
+      - "WRONG_VIEW（非侧视斜角机位模拟）"
+      - "INCOMPLETE_REP（中途放弃站起未蹲深）"
+      - "CONSENT_BLOCKED（已撤回/无授权许可阻断模拟）"
+    prohibited_uses:
+      - "严禁混入性能分子或分母统计"
+
+ground_truth_discipline:
+  protocol: "双人独立盲法复核"
+  sampling_rate: 1.0  # 验证集 100% 双人双盲复核
+  adjudication_rule: "若两位标注员在动作阶段起止点偏差超过 3 帧或规则判定存在分歧，由仲裁员复核裁决并在分歧台账留痕。"
+  zero_fake_truth_mandate: "在双人复核真值标注完成前，仅允许输出功能回放日志，严禁报告任何未经核准的准确率或性能数字。"

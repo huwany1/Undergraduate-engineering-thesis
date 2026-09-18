@@ -1,0 +1,4 @@
+consent_id,subject_pseudonym,form_version,granted_at,retention_until,is_adult,purpose,allow_presentation_opt_in,status,withdrawn_at,disposal_case_id
+CST-2026-001,SUBJ-P0-01,FORM-SQUAT-2026-v1,2026-09-18,2026-12-31,TRUE,thesis_academic_demo,TRUE,ACTIVE,NONE,PENDING
+CST-2026-002,SUBJ-P0-02,FORM-SQUAT-2026-v1,2026-09-18,2026-12-31,TRUE,thesis_academic_demo,FALSE,ACTIVE,NONE,PENDING
+CST-2026-003,SUBJ-P0-03,FORM-SQUAT-2026-v1,2026-09-18,2026-12-31,TRUE,thesis_academic_demo,FALSE,WITHDRAWN,2026-09-18 16:00,DISP-2026-001

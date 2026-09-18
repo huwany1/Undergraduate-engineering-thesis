@@ -1,0 +1,88 @@
+# ==============================================================================
+# P0 范围与边界卡 (Scope Contract)
+# Baseline ID: P0-SQUAT-SIDE-OFFLINE-v1.0
+# ==============================================================================
+
+scope_id: "SQUAT-SIDE-SINGLE-OFFLINE"
+version: "v1.0"
+effective_date: "2026-09-18"
+owner: "技术负责人"
+
+business_goal: "在受控条件下，对成年单人完整深蹲动作的次数、阶段及特定规则要点给出可解释、可回放的训练辅助反馈。"
+
+input_specification:
+  source_type: "offline_video"
+  allowed_formats: ["mp4", "avi", "mov"]
+  recording_mode: "controlled_offline"
+  prohibited_sources:
+    - "web_crawled_videos"
+    - "unauthorized_recordings"
+    - "legacy_detection_datasets"
+
+output_specification:
+  events:
+    - "rep_count"
+    - "stage_transition"
+  states:
+    - "valid_evaluated"
+    - "not_evaluated"
+  reason_codes:
+    - "COMPLETE_REP"
+    - "INSUFFICIENT_DEPTH"
+    - "EXCESSIVE_TORSO_LEAN"
+    - "RULE_NOT_TRIGGERED"
+    - "NO_PERSON"
+    - "MULTI_PERSON"
+    - "OUT_OF_FRAME"
+    - "LOW_VISIBILITY"
+    - "OCCLUSION"
+    - "WRONG_VIEW"
+    - "INVALID_CAMERA"
+    - "INCOMPLETE_REP"
+    - "CONSENT_BLOCKED"
+    - "BASELINE_MISMATCH"
+  deliverables:
+    - "annotated_mp4_with_skeleton_overlay"
+    - "frame_level_json_or_csv_log"
+    - "rep_level_summary_log"
+
+evidence_boundary:
+  pose_estimator: "MediaPipe Pose (33 landmarks)"
+  coordinate_space: "2D_screen_space"
+  clinical_claim: false
+  three_dimensional_biomechanical_claim: false
+  description: "仅消费2D屏幕像素/归一化坐标计算几何代理量；不将world landmarks作为精确三维或临床度量。"
+
+inclusion_criteria:
+  - "authorized_adult_participant"
+  - "fixed_sagittal_side_view"
+  - "single_person_in_frame"
+  - "full_body_visible_head_to_feet"
+  - "complete_squat_cycle"
+  - "passed_camera_and_consent_gates"
+
+exclusion_criteria:
+  - "multiple_persons_or_switching"
+  - "facial_recognition_or_cross_video_reid"
+  - "realtime_performance_commitments"
+  - "generalized_movement_claim"
+  - "medical_or_rehabilitation_claims"
+  - "minors_under_18"
+
+prohibited_claims:
+  - "医疗诊断"
+  - "康复建议"
+  - "伤病预测"
+  - "风险预测"
+  - "自动矫正成功"
+  - "预防受伤"
+  - "通用"
+  - "适配所有人"
+  - "适配所有镜头"
+  - "全链路已集成"
+
+termination_triggers:
+  - "consent_withdrawn"
+  - "purpose_deviation"
+  - "baseline_version_mismatch"
+  - "admission_gate_failure"

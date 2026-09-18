@@ -58,3 +58,12 @@ $RECYCLE.BIN/
 /yolov8-deepsort/directory/
 /yolov8-deepsort/result*.mp4
 **/runs/
+
+# P0 Data Governance: S1 raw sensitive and S2 derived feature data
+/data/S1_raw_sensitive/*
+!/data/S1_raw_sensitive/.gitkeep
+/data/S2_derived_features/*
+!/data/S2_derived_features/.gitkeep
+# Participant identities and raw private consent records
+*_identity_mapping.*
+*_private_consent.*

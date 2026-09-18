@@ -1,0 +1,64 @@
+# ==============================================================================
+# P0 机位规范卡 (Camera Profile)
+# Baseline ID: P0-SQUAT-SIDE-OFFLINE-v1.0
+# ==============================================================================
+
+camera_profile_id: "CAM-SIDE-FIXED-v1.0"
+version: "v1.0"
+effective_date: "2026-09-18"
+owner: "采集负责人"
+
+view_specification:
+  primary_view: "right_side_sagittal"
+  allowed_views: ["right_side_sagittal", "left_side_sagittal"]
+  sagittal_parallel_tolerance_deg: 10
+  prohibited_views:
+    - "front_view"
+    - "oblique_45_deg_view"
+    - "mirror_reflection_view"
+    - "overhead_view"
+
+camera_stability:
+  mount_type: "rigid_tripod"
+  lock_status: "pitch_yaw_roll_locked"
+  zoom_mode: "fixed_focal_length"
+  dynamic_camera_actions: "strictly_prohibited"
+
+geometry_calibration:
+  optical_axis_height_cm: 90
+  height_tolerance_cm: 10
+  distance_to_subject_m: 3.0
+  distance_tolerance_m: 0.5
+  lens_pitch_angle_deg: 0.0
+  pitch_tolerance_deg: 3.0
+  measurement_protocol: "激光测距仪测距，电子水平仪校平镜头"
+
+framing_and_resolution:
+  screen_orientation: "landscape"
+  native_resolution: "1920x1080"
+  min_resolution: "1280x720"
+  nominal_fps: 30
+  min_person_height_ratio: 0.60
+  full_body_mandatory_joints:
+    - "nose"
+    - "shoulder"
+    - "hip"
+    - "knee"
+    - "ankle"
+    - "foot_index"
+  standing_and_lowest_point_padding_px: 50
+
+environmental_conditions:
+  lighting: "indoor_stable_diffused"
+  clothing_contrast: "high_contrast_against_background"
+  occlusion_tolerance: "zero"
+  bystander_policy: "strictly_zero_bystanders"
+
+dual_specimen_protocol:
+  pass_specimen:
+    description: "已获完整授权，受试者侧身面对镜头，起立与最低点全身无出框，光照均匀稳定。"
+    expected_gate_result: "PASS"
+  fail_specimen:
+    description: "受试者故意斜视45度录制，或下蹲时脚部移出画幅底边。"
+    expected_gate_result: "REJECT"
+    expected_reason_code: "WRONG_VIEW_OR_OUT_OF_FRAME"

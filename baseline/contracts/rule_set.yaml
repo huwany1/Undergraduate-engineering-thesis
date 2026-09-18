@@ -1,0 +1,86 @@
+# ==============================================================================
+# P0 规则卡集 (Rule Set)
+# Baseline ID: P0-SQUAT-SIDE-OFFLINE-v1.0
+# ==============================================================================
+
+rule_set_version: "RULE-SQUAT-v1.0"
+aggregation_policy_version: "AGG-STRICT-GATED-v1.0"
+effective_date: "2026-09-18"
+owner: "规则负责人"
+scope_id: "SQUAT-SIDE-SINGLE-OFFLINE"
+camera_profile_id: "CAM-SIDE-FIXED-v1.0"
+
+rules:
+  - rule_id: "R-CYCLE-001"
+    name: "深蹲完整动作周期状态机"
+    target_event: "rep_count"
+    input_landmarks:
+      - "selected_side_hip"
+      - "selected_side_knee"
+      - "selected_side_ankle"
+    temporal_parameters:
+      smoothing_window_frames: 5
+      min_stage_dwell_frames: 4
+      state_sequence:
+        - "STANDING"
+        - "DESCENDING"
+        - "BOTTOM"
+        - "ASCENDING"
+        - "STANDING"
+    predicate: "只有严格按顺序完整经历上述 5 个阶段且每个阶段持续帧数满足要求，才判定为完成一次完整动作并递增计数 1 次；任何阶段逆转、中途停顿超时或中断均不计入次数。"
+    outputs:
+      pass_event: "COMPLETE_REP"
+      fail_event: "INCOMPLETE_REP"
+    severity: "INFO"
+
+  - rule_id: "R-DEPTH-001"
+    name: "2D屏幕空间下蹲深度代理评估"
+    target_event: "quality_feedback"
+    input_landmarks:
+      - "selected_side_hip"
+      - "selected_side_knee"
+    coordinate_space: "2D_screen_space"
+    metric_definition: "hip_knee_vertical_delta = knee_screen_y - hip_screen_y (归一化屏幕坐标系下，向下为正)"
+    engineering_threshold:
+      parameter_name: "min_depth_delta_normalized"
+      default_calibrated_value: 0.00
+      calibration_note: "阈值通过校准集标定，不宣称为临床绝对关节角度"
+    predicate: "在动作到达 BOTTOM 阶段期间，受试者髋部屏幕坐标必须至少下降至膝部屏幕坐标水平线（即 hip_screen_y >= knee_screen_y）；若未达到，则触发下蹲深度不足提示。"
+    outputs:
+      triggered_code: "INSUFFICIENT_DEPTH"
+      triggered_template: "下蹲深度未达标：臀部未下移至与膝关节持平水平"
+      not_triggered_code: "RULE_NOT_TRIGGERED"
+    severity: "WARNING"
+
+  - rule_id: "R-LEAN-001"
+    name: "2D屏幕空间躯干前倾角代理评估"
+    target_event: "quality_feedback"
+    input_landmarks:
+      - "selected_side_shoulder"
+      - "selected_side_hip"
+    coordinate_space: "2D_screen_space"
+    metric_definition: "torso_lean_angle_deg = abs(arctan2(shoulder_x - hip_x, hip_y - shoulder_y) * 180 / PI)"
+    engineering_threshold:
+      parameter_name: "max_torso_lean_angle_deg"
+      default_calibrated_value: 45.0
+      calibration_note: "针对固定右侧视受控机位校准的工程阈值，不得外推为脊柱椎间盘受力"
+    predicate: "在动作的 DESCENDING 及 BOTTOM 阶段中，若躯干矢状面连线与竖直重力线的夹角超过预设工程阈值，则触发前倾过大提示。"
+    outputs:
+      triggered_code: "EXCESSIVE_TORSO_LEAN"
+      triggered_template: "躯干前倾幅度偏大：请收紧核心，保持胸部稳定"
+      not_triggered_code: "RULE_NOT_TRIGGERED"
+    severity: "WARNING"
+
+aggregation_policy:
+  policy_id: "AGG-STRICT-GATED-v1.0"
+  pre_gate_override:
+    rule: "当任一前置门控失败（如 NO_PERSON, OUT_OF_FRAME, LOW_VISIBILITY, INCOMPLETE_REP 等）时，系统总体状态强制锁定为 NOT_EVALUATED，全量屏蔽所有质量反馈输出。"
+  evaluation_synthesis:
+    rep_completed_flow:
+      condition: "R-CYCLE-001 == COMPLETE_REP"
+      action: "rep_count += 1"
+      quality_code_aggregation:
+        strategy: "collect_all_triggered"
+        ordering: ["severity_desc", "rule_id_asc"]
+        clean_rep_code: "ACCEPTABLE_REP"
+        clean_rep_template: "动作标准，完成完整一次深蹲"

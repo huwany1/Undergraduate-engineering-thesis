@@ -1,0 +1,52 @@
+# ==============================================================================
+# P0 基线清单 (Baseline Manifest)
+# ==============================================================================
+
+baseline_id: "P0-SQUAT-SIDE-OFFLINE-v1.0"
+status: "GATES_VERIFIED_PENDING_FINAL_SIGNOFF"
+created_at: "2026-09-18T21:50:00+08:00"
+effective_date: "2026-09-18"
+
+component_versions:
+  scope_version: "SQUAT-SIDE-SINGLE-OFFLINE-v1.0"
+  camera_profile_id: "CAM-SIDE-FIXED-v1.0"
+  rule_set_version: "RULE-SQUAT-v1.0"
+  aggregation_policy_version: "AGG-STRICT-GATED-v1.0"
+  consent_policy_version: "CONSENT-GOV-v1.0"
+  consent_form_version: "FORM-SQUAT-2026-v1"
+  dataset_manifest_version: "DS-MANIFEST-v1.0"
+  label_guide_version: "LABEL-GUIDE-v1.0"
+
+fingerprint_schema:
+  pattern: "{baseline_id}.{scope_version}.{camera_profile_id}.{rule_set_version}.{consent_status}.{source_video_id}.{operator}.{recorded_at}"
+  example: "P0-SQUAT-SIDE-OFFLINE-v1.0.SQUAT-SIDE-SINGLE-OFFLINE-v1.0.CAM-SIDE-FIXED-v1.0.RULE-SQUAT-v1.0.ACTIVE.VID-REC-20260918-01.Op_Zhang.20260918T1430"
+
+contract_checksums:
+  scope_contract.yaml: "3edbfba340b0094ba4b13c83e5b91af145e1d95f981e25c3a4598864b8f893d4"
+  camera_profile.yaml: "89ba49e7bbb75d804e7e688c598dffc8e2fd20f397a623cbba3cf25f20d3f3b9"
+  rule_set.yaml: "9c58783d5cf834b0a33358066e279a0fb290f8e6fe70888c818ed6fa597d40b2"
+  consent_governance.yaml: "6468fb7e8c38e2a9fe3f77f6f169ae261f08cd2e9c03cd3df6b4b5dd5ea30937"
+  dataset_manifest.yaml: "4574be744fe6d247f0cab4fa0ef3d277466699fc00f473ac9db8c90f0e513d1c"
+
+gate_verification_status:
+  G0_scope_consistency: "PASS"
+  G1_camera_executable: "PASS"
+  G2_rule_deterministic: "PASS"
+  G3_consent_traceable: "PASS"
+  G4_dataset_isolated: "PASS"
+  G5_version_auditable: "PASS"
+  G6_refusal_contract: "PASS"
+
+signoff_records:
+  technical_lead:
+    role: "技术负责人"
+    review_scope: "范围边界、机位几何、规则确定性与安全拒绝契约"
+    signature_status: "VERIFIED_READY_TO_SIGN"
+  data_protection_officer:
+    role: "数据负责人"
+    review_scope: "知情同意书、S1-S4分级、凭证解耦与销毁机制"
+    signature_status: "VERIFIED_READY_TO_SIGN"
+  supervisor:
+    role: "指导教师 / 学校流程责任人"
+    review_scope: "教学科研目的、答辩展示范围及合规性"
+    signature_status: "VERIFIED_READY_TO_SIGN"

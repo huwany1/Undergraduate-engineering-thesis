@@ -1,0 +1,62 @@
+# ==============================================================================
+# P0 数据授权与治理卡 (Consent & Data Governance)
+# Baseline ID: P0-SQUAT-SIDE-OFFLINE-v1.0
+# ==============================================================================
+
+consent_policy_version: "CONSENT-GOV-v1.0"
+version: "v1.0"
+effective_date: "2026-09-18"
+owner: "数据负责人"
+
+purpose_specification:
+  primary_purpose: "本科毕业设计（论文）教学科研原型开发与受控场景下的训练辅助功能验证。"
+  expressly_prohibited_purposes:
+    - "facial_recognition_or_biometric_identification"
+    - "cross_video_reid_or_tracking"
+    - "commercial_exploitation"
+    - "public_social_media_distribution"
+    - "medical_diagnosis_or_clinical_assessment"
+
+eligibility_rules:
+  min_age: 18
+  minors_policy: "strictly_prohibited"
+  capacity_requirement: "full_civil_capacity"
+
+consent_instrument:
+  consent_form_version: "FORM-SQUAT-2026-v1"
+  mandatory_clauses:
+    - "项目背景、目的与指导教师联系方式告知"
+    - "采集数据项清单（视频、关键点、姿态日志）"
+    - "不可用于人脸识别与商业化承诺"
+    - "存储位置、安全访问角色与具体的到期处置说明"
+    - "无条件自愿参与与随时撤销同意机制"
+  presentation_opt_in:
+    clause_name: "答辩展示与论文截图独立授权"
+    default_state: false
+    requirement: "若参与者未勾选此项，严禁任何截帧用于答辩或论文公开展示"
+
+data_classification_and_handling:
+  S1_raw_sensitive:
+    content: "原视频文件、含面部截图、参与者实名及身份对应表"
+    storage_rule: "本地加密磁盘，物理与权限严格隔离，绝对禁止提交至代码版本库"
+    access_control: "仅限数据管理员及获签核研究成员"
+  S2_controlled_derived:
+    content: "去标识化关键点 JSON/CSV、骨架叠加视频、阶段时序日志"
+    storage_rule: "受控目录，仅供算法开发与指标统计消费，禁止外部公开"
+    access_control: "项目开发组全员"
+  S3_presentation_evidence:
+    content: "获得独立展示授权的去面部/马赛克截帧、汇总统计图表"
+    storage_rule: "展示前由技术与数据负责人二次复核签字"
+    access_control: "答辩现场展示"
+  S4_public_contracts:
+    content: "机位规范卡、规则卡、基线清单、空白模板及统计方法"
+    storage_rule: "公开版本库管理"
+    access_control: "公开"
+
+runtime_permit_decoupling:
+  mechanism: "准入层向下游算法管线仅发放可撤回的 processing_permit_id 与 permit_snapshot_version，算法层不持有真实姓名或授权原件。"
+  revocation_check: "每次分析任务启动前，必须强制调用许可核验器；若许可失效或参与者撤回，立即阻断。"
+
+lifecycle_and_disposal:
+  retention_until: "2026-12-31"
+  disposal_policy: "到期或撤回时，按 source_video_id 全量检索 S1 原始视频、S2 派生特征及备份副本，执行覆写销毁，并归档不可逆处置凭单。"
