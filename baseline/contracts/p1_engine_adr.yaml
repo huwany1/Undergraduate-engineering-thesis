@@ -1,0 +1,53 @@
+# ==============================================================================
+# G1-P1 姿态引擎决策卡与资产规范 (P1 Engine ADR)
+# ==============================================================================
+
+adr_id: "ADR-P1-ENGINE-v1.0"
+version: "v1.0"
+effective_date: "2026-09-18"
+owner: "技术负责人"
+status: "APPROVED"
+
+engine_candidates:
+  primary_production:
+    engine_id: "mediapipe_tasks_pose"
+    framework: "mediapipe"
+    package_version_constraint: ">=0.10.21,<0.10.30"
+    mode: "RunningMode.VIDEO"
+    license: "Apache-2.0"
+    supports_timeline_timestamp: true
+    neutral_dto_isolated: true
+    description: "Google 官方 Tasks 视频流引擎，支持逐帧传入单调微秒时间戳"
+
+  ci_deterministic:
+    engine_id: "deterministic_mock_pose"
+    framework: "internal_mock"
+    package_version_constraint: "any"
+    mode: "DETERMINISTIC_SYNTHETIC"
+    license: "Apache-2.0"
+    supports_timeline_timestamp: true
+    neutral_dto_isolated: true
+    description: "离线确定性姿态引擎，用于 CI 与故障注入测试"
+
+  exploratory_legacy:
+    engine_id: "mediapipe_legacy_pose"
+    framework: "mediapipe.solutions.pose"
+    package_version_constraint: ">=0.10.21,<0.10.30"
+    mode: "STATIC_OR_STREAM"
+    license: "Apache-2.0"
+    supports_timeline_timestamp: false
+    status: "PROHIBITED_IN_P1_RELEASE"
+    description: "旧版解决方案，不支持调用方时间戳契约，禁止作为 P1 正式发布实现"
+
+model_asset_specification:
+  model_id: "pose_landmarker_full"
+  filename: "pose_landmarker_full.task"
+  controlled_local_dir: "models"
+  official_download_url: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task"
+  expected_sha256: "c1851e3914a84949ad4cb96e9fa22a452efeb38d2f50c05f01311ff0567e9f3b"
+  license: "Apache-2.0"
+  git_excluded: true
+
+gate_checks:
+  G1_P1_engine_signed_off: true
+  neutral_dto_boundary_enforced: true

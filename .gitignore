@@ -67,3 +67,8 @@ $RECYCLE.BIN/
 # Participant identities and raw private consent records
 *_identity_mapping.*
 *_private_consent.*
+
+# P1 Model Assets
+models/
+*.task
+

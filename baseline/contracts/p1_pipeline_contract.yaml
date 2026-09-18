@@ -1,0 +1,135 @@
+# ==============================================================================
+# P1 姿态视频链路与数据契约规范 (P1 Pipeline Contract)
+# Baseline Reference: P0-SQUAT-SIDE-OFFLINE-v1.0
+# ==============================================================================
+
+contract_id: "P1-POSE-VIDEO-OFFLINE-v1.0"
+version: "v1.0"
+effective_date: "2026-09-18"
+owner: "技术负责人"
+
+scope_ref:
+  baseline_id: "P0-SQUAT-SIDE-OFFLINE-v1.0"
+  processing_purpose: "thesis_academic_demo"
+
+skeleton_topology:
+  topology_version: "MEDIAPIPE_33_v1.0"
+  point_count: 33
+  connections:
+    - [0, 1]
+    - [1, 2]
+    - [2, 3]
+    - [3, 7]
+    - [0, 4]
+    - [4, 5]
+    - [5, 6]
+    - [6, 8]
+    - [9, 10]
+    - [11, 12]
+    - [11, 13]
+    - [13, 15]
+    - [15, 17]
+    - [15, 19]
+    - [15, 21]
+    - [17, 19]
+    - [12, 14]
+    - [14, 16]
+    - [16, 18]
+    - [16, 20]
+    - [16, 22]
+    - [18, 20]
+    - [11, 23]
+    - [12, 24]
+    - [23, 24]
+    - [23, 25]
+    - [24, 26]
+    - [25, 27]
+    - [26, 28]
+    - [27, 29]
+    - [28, 30]
+    - [29, 31]
+    - [30, 32]
+    - [27, 31]
+    - [28, 32]
+
+quality_gate_policy:
+  policy_version: "QG-POLICY-v1.0"
+  calibration_window_frames: 10
+  visibility_threshold: 0.5
+  presence_threshold: 0.5
+  allow_unknown_fields: true
+  unknown_field_handling: "ALLOW_AND_FLAG"
+  key_joints:
+    left:
+      shoulder: 11
+      hip: 23
+      knee: 25
+      ankle: 27
+    right:
+      shoulder: 12
+      hip: 24
+      knee: 26
+      ankle: 28
+
+reason_codes_dictionary:
+  input:
+    - "INPUT_NOT_FOUND"
+    - "UNSUPPORTED_CONTAINER"
+    - "NO_DECODABLE_FRAMES"
+    - "FPS_UNAVAILABLE"
+    - "PTS_NON_MONOTONIC"
+    - "P0_PERMIT_INVALID"
+  engine:
+    - "MODEL_ASSET_MISSING"
+    - "MODEL_HASH_MISMATCH"
+    - "ENGINE_INIT_FAILED"
+    - "POSE_INFERENCE_FAILED"
+    - "INVALID_MODEL_OUTPUT"
+  frame_quality:
+    - "NO_POSE"
+    - "REQUIRED_JOINT_NONFINITE"
+    - "REQUIRED_JOINT_OUT_OF_FRAME"
+    - "REQUIRED_JOINT_LOW_VISIBILITY"
+    - "POSE_SIDE_AMBIGUOUS"
+    - "POSE_SIDE_CHANGED"
+  output_run:
+    - "OUTPUT_CODEC_UNAVAILABLE"
+    - "OUTPUT_WRITE_FAILED"
+    - "INTERNAL_ORDER_VIOLATION"
+    - "HANG_TIMEOUT"
+    - "CANCELLED"
+
+overlay_specification:
+  overlay_version: "OVERLAY-2D-v1.0"
+  coordinate_system: "2D_ORIGINAL_IMAGE_PIXEL"
+  line_width: 2
+  circle_radius: 4
+  joint_color_bgr: [0, 255, 0]        # 绿色
+  bone_color_bgr: [255, 200, 0]       # 浅蓝
+  hud_font_scale: 0.5
+  hud_text_color_bgr: [255, 255, 255] # 白色
+  hud_bg_color_bgr: [30, 30, 30]      # 深灰
+  prohibited_elements:
+    - "rep_count"
+    - "squat_depth_status"
+    - "pass_fail_judgment"
+    - "angle_score"
+    - "clinical_metrics"
+
+atomic_publishing_contract:
+  work_dir_pattern: ".runs/{run_id}.partial"
+  target_dir_pattern: "{approved_output_root}/{input_stem}-{config_hash}"
+  required_artifacts:
+    - "overlay.mp4"
+    - "keypoints.jsonl"
+    - "frames.csv"
+    - "manifest.json"
+    - "validation.json"
+    - "SUCCESS"
+  five_counts_equality_mandate:
+    fields:
+      - "decoded_count"
+      - "inferred_count"
+      - "rendered_count"
+      - "written_count"
+      - "sidecar_count"
