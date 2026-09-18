@@ -1,7 +1,7 @@
 {
   "baseline_id": "P0-SQUAT-SIDE-OFFLINE-v1.0",
-  "git_commit": "ed55448",
-  "timestamp": "2026-09-18T23:22:11.377148",
+  "git_commit": "74a1ae3",
+  "timestamp": "2026-09-19T00:18:45.897159",
   "total_cases": 5,
   "passed_cases": 5,
   "failed_cases": 0,
@@ -22,7 +22,7 @@
       "measured_min_knee_angle": 92.42,
       "measured_max_torso_angle": 21.38,
       "diff_reasons": [],
-      "execution_time_ms": 0.67,
+      "execution_time_ms": 0.77,
       "keyframes": [
         {
           "event_type": "COMPLETION_SUMMARY",
@@ -77,7 +77,7 @@
       "measured_min_knee_angle": 108.94,
       "measured_max_torso_angle": 21.38,
       "diff_reasons": [],
-      "execution_time_ms": 0.58,
+      "execution_time_ms": 0.63,
       "keyframes": [
         {
           "event_type": "COMPLETION_SUMMARY",
@@ -132,7 +132,7 @@
       "measured_min_knee_angle": 92.42,
       "measured_max_torso_angle": 51.08,
       "diff_reasons": [],
-      "execution_time_ms": 0.57,
+      "execution_time_ms": 1.96,
       "keyframes": [
         {
           "event_type": "COMPLETION_SUMMARY",
@@ -188,7 +188,7 @@
       "measured_min_knee_angle": 109.44,
       "measured_max_torso_angle": 50.09,
       "diff_reasons": [],
-      "execution_time_ms": 0.66,
+      "execution_time_ms": 0.72,
       "keyframes": [
         {
           "event_type": "COMPLETION_SUMMARY",
@@ -242,7 +242,7 @@
       "measured_min_knee_angle": 126.99,
       "measured_max_torso_angle": 16.42,
       "diff_reasons": [],
-      "execution_time_ms": 0.44,
+      "execution_time_ms": 0.87,
       "keyframes": [
         {
           "event_type": "COMPLETION_SUMMARY",
@@ -325,7 +325,7 @@
     "screenshots\\TC_05_OUT_OF_FRAME_gate_rejected_f024.png": "9046e14e12a94c28f41f09d523bca932ed7b8fd83d336e280047ddb908d89767",
     "sidecars\\TC_05_OUT_OF_FRAME_frames.jsonl": "221bcbe367dafac8798ba993beaab68da8712183366c1a71956749504e39737b",
     "replays\\TC_05_OUT_OF_FRAME_annotated.mp4": "fc9f3809dd47f066ba8e53a44386d50d6227309bc901a27ff2e4ef82a5823d23",
-    "metrics_summary.csv": "9105c3d54f06c23f8a2996dee43590bfa44e29e94f8d1853e95b1fdc93623994",
-    "summary_report.md": "2a7983a7d48899c65198ccdbba9e29ea7bd8bde7c8224656851261d968ff24ac"
+    "metrics_summary.csv": "1fbb0fe7f6f06360a4fcffe729db90826274c72a34300c64d9c7514f5b157a17",
+    "summary_report.md": "da69249c6b08ad8cf7acb446334154d496360355a5fce52c7ab8e71c821a56b7"
   }
 }
