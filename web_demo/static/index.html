@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>深蹲动作质量辅助评估 Web 交互系统</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏋️</text></svg>">
+</head>
+<body>
+  <!-- 页面顶部导航栏 -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-icon">🏋️</div>
+      <div class="header-title">
+        <h1>深蹲动作质量辅助评估与时序分析系统</h1>
+        <div class="subtitle-row">
+          <span class="badge badge-baseline" id="baseline-badge">基线: P0-SQUAT-SIDE-OFFLINE-v1.0</span>
+          <span class="badge badge-git" id="git-badge">Git: --</span>
+          <span class="badge badge-status online" id="status-indicator">● 服务在线</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-primary" id="open-matrix-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        P4 答辩验证全景矩阵
+      </button>
+    </div>
+  </header>
+
+  <!-- 主布局容器 -->
+  <main class="app-main">
+    <!-- 左侧：用例选择与配置侧边栏 -->
+    <aside class="sidebar">
+      <section class="panel case-selector-panel">
+        <div class="panel-header">
+          <h2>5 大黄金测试场景</h2>
+          <span class="hint-tag">确定性验证基准</span>
+        </div>
+        <div class="case-list" id="case-list">
+          <!-- 动态注入 5 大黄金用例卡片 -->
+          <div class="loading-spinner">正在加载用例清单...</div>
+        </div>
+      </section>
+
+      <!-- 规则卡阈值基准 -->
+      <section class="panel rule-card-panel">
+        <div class="panel-header">
+          <h2>规则卡判定阈值</h2>
+          <span class="hint-tag">受控参数</span>
+        </div>
+        <ul class="rule-specs">
+          <li>
+            <span class="rule-name">R-DEPTH-001 (下蹲深度)</span>
+            <span class="rule-val">膝角 ≤ 105.0°</span>
+          </li>
+          <li>
+            <span class="rule-name">R-LEAN-001 (躯干前倾)</span>
+            <span class="rule-val">前倾 ≤ 45.0°</span>
+          </li>
+          <li>
+            <span class="rule-name">R-CYCLE-001 (周期完整)</span>
+            <span class="rule-val">0.6s ≤ 持续 ≤ 6.0s</span>
+          </li>
+          <li>
+            <span class="rule-name">G1-GATE (质检门控)</span>
+            <span class="rule-val">出框/遮挡一票否决</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 本地视频上传演示 -->
+      <section class="panel upload-panel">
+        <div class="panel-header">
+          <h2>自定义视频分析</h2>
+          <span class="hint-tag">离线推理</span>
+        </div>
+        <div class="upload-box" id="upload-box">
+          <input type="file" id="video-file-input" accept="video/mp4" style="display:none">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <p>拖拽或点击上传 MP4 视频</p>
+          <span class="upload-note">限定固定侧视、单人全身入镜</span>
+        </div>
+      </section>
+    </aside>
+
+    <!-- 右侧：视频回放、时序画布与评估报告主区 -->
+    <section class="content-area">
+      <!-- 上半部分：视频播放器与实时 HUD -->
+      <div class="panel player-panel">
+        <div class="panel-header">
+          <div class="case-meta">
+            <h2 id="current-case-name">用例加载中...</h2>
+            <p id="current-case-desc" class="case-description"></p>
+          </div>
+          <div class="hud-badges">
+            <div class="hud-item">
+              <span class="hud-label">计数</span>
+              <span class="hud-value count-val" id="hud-count">0</span>
+            </div>
+            <div class="hud-item">
+              <span class="hud-label">状态机阶段</span>
+              <span class="badge badge-fsm" id="hud-fsm">STANDING</span>
+            </div>
+            <div class="hud-item">
+              <span class="hud-label">门控状态</span>
+              <span class="badge badge-gate" id="hud-gate">DRAWABLE</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="video-container">
+          <video id="demo-video" controls preload="auto" playsinline>
+            您的浏览器不支持视频播放。
+          </video>
+          <div class="video-overlay-info" id="video-overlay-info">
+            <span id="overlay-time">00:00.000</span>
+            <span id="overlay-frame">Frame: 0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 中间部分：双通道交互式时序遥测曲线 -->
+      <div class="panel chart-panel">
+        <div class="panel-header">
+          <div class="chart-title-group">
+            <h2>逐帧运动学时序遥测曲线 (Kinematic Telemetry)</h2>
+            <span class="hint-tag">支持点击曲线跳转时间戳</span>
+          </div>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-color knee-color"></span> 膝关节屈曲角 (Knee)</span>
+            <span class="legend-item"><span class="legend-color torso-color"></span> 躯干前倾角 (Torso)</span>
+            <span class="legend-item"><span class="legend-dashed depth-dash"></span> 深度合格线 (105°)</span>
+            <span class="legend-item"><span class="legend-dashed lean-dash"></span> 前倾预警线 (45°)</span>
+          </div>
+        </div>
+        <div class="canvas-wrapper">
+          <canvas id="telemetry-chart"></canvas>
+          <div class="chart-tooltip" id="chart-tooltip" style="display: none;"></div>
+        </div>
+      </div>
+
+      <!-- 下半部分：动作评估结论与关键特征帧快照 -->
+      <div class="bottom-grid">
+        <!-- 评估结论与反馈卡片 -->
+        <div class="panel assessment-panel">
+          <div class="panel-header">
+            <h2>动作质量评估与训练指导 (Assessment & Feedback)</h2>
+            <span class="badge badge-eval" id="eval-status-badge">ACCEPTABLE</span>
+          </div>
+
+          <div class="metrics-summary-cards">
+            <div class="metric-card">
+              <div class="metric-title">膝关节最小屈曲角</div>
+              <div class="metric-value" id="val-min-knee">--°</div>
+              <div class="metric-benchmark">基准: ≤ 105.0° (深蹲及格)</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">躯干最大前倾角</div>
+              <div class="metric-value" id="val-max-torso">--°</div>
+              <div class="metric-benchmark">基准: ≤ 45.0° (安全稳定)</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">动作周期耗时</div>
+              <div class="metric-value" id="val-exec-time">-- ms</div>
+              <div class="metric-benchmark">基准: 0.6s ~ 6.0s</div>
+            </div>
+          </div>
+
+          <div class="feedback-content-box">
+            <h3>证据化训练提示 (Sanitized Guidance)</h3>
+            <p id="eval-feedback-text" class="feedback-text">正在评估...</p>
+          </div>
+        </div>
+
+        <!-- 语义关键帧画廊 -->
+        <div class="panel keyframes-panel">
+          <div class="panel-header">
+            <h2>关键事件特征帧快照 (Keyframe Evidence)</h2>
+            <span class="hint-tag">点击查看大图</span>
+          </div>
+          <div class="keyframes-grid" id="keyframes-grid">
+            <div class="empty-hint">暂无特征帧数据</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- P4 答辩自包含验证矩阵模态弹窗 -->
+  <dialog id="matrix-dialog" class="modal-dialog">
+    <div class="modal-header">
+      <h2>P4 动作评估验证包全景矩阵 (Verification Package Matrix)</h2>
+      <button class="btn-close" id="close-matrix-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="matrix-stats-grid">
+        <div class="stat-box">
+          <span class="stat-num" id="mat-total-cases">5</span>
+          <span class="stat-label">总黄金用例</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-num text-success" id="mat-passed-cases">5</span>
+          <span class="stat-label">通过用例</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-num text-primary" id="mat-concordance">100.0%</span>
+          <span class="stat-label">全量吻合率</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-num text-success" id="mat-mae">0.00</span>
+          <span class="stat-label">计数 MAE</span>
+        </div>
+      </div>
+
+      <h3>5 大场景断言矩阵对比明细</h3>
+      <div class="table-container">
+        <table class="data-table" id="matrix-table">
+          <thead>
+            <tr>
+              <th>用例编号</th>
+              <th>测试场景</th>
+              <th>实测计数</th>
+              <th>评估状态</th>
+              <th>核心原因码</th>
+              <th>膝角波谷</th>
+              <th>前倾峰值</th>
+              <th>耗时</th>
+              <th>核验结论</th>
+            </tr>
+          </thead>
+          <tbody id="matrix-table-body">
+            <!-- 动态填充表格 -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="summary-md-box">
+        <h3>自动化验证总结报告</h3>
+        <pre id="summary-md-content">加载报告中...</pre>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 大图预览模态弹窗 -->
+  <dialog id="image-dialog" class="image-modal-dialog">
+    <div class="image-modal-content">
+      <button class="btn-close image-modal-close" id="close-image-btn">&times;</button>
+      <img id="modal-image-preview" src="" alt="特征帧大图预览">
+      <p id="modal-image-caption" class="image-caption"></p>
+    </div>
+  </dialog>
+
+  <!-- 引入纯原生前端模块 -->
+  <script src="/static/js/chart.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
