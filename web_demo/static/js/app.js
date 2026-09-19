@@ -48,10 +48,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadBox = document.getElementById('upload-box');
   const videoFileInput = document.getElementById('video-file-input');
 
+  const btnShowGolden = document.getElementById('btn-show-golden');
+  const btnShowDataset = document.getElementById('btn-show-dataset');
+  const selectorTag = document.getElementById('selector-tag');
+
   // 全局状态
+  let currentMode = 'GOLDEN'; // 'GOLDEN' | 'DATASET'
   let currentCaseId = 'TC_01_PERFECT_SQUAT';
   let telemetryData = [];
   let casesData = [];
+  let datasetDemosData = [];
 
   // 初始化图表组件
   const chart = new window.TelemetryChart(chartCanvas, {
@@ -130,7 +136,112 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 3. 切换选定用例
+  // 2.2 加载 MediaPipe 真实数据集用例列表
+  async function loadDatasetDemos() {
+    caseListEl.innerHTML = '<div class="loading-spinner">正在加载 MediaPipe 真实数据集演示...</div>';
+    try {
+      const res = await fetch('/api/dataset_demos');
+      datasetDemosData = await res.json();
+      renderDatasetDemoList(datasetDemosData);
+
+      if (datasetDemosData.length > 0) {
+        selectDatasetDemo(datasetDemosData[0].demo_id);
+      } else {
+        caseListEl.innerHTML = '<div class="empty-hint">暂无已分析的真实数据集资产，请先在终端运行 run_dataset_demo.py</div>';
+      }
+    } catch (e) {
+      caseListEl.innerHTML = `<div class="empty-hint">加载数据集失败: ${e.message}</div>`;
+    }
+  }
+
+  function renderDatasetDemoList(demos) {
+    caseListEl.innerHTML = '';
+    demos.forEach((d) => {
+      const card = document.createElement('div');
+      card.className = `case-card ${d.demo_id === currentCaseId ? 'active' : ''}`;
+      card.dataset.id = d.demo_id;
+
+      let statusBadgeClass = d.total_reps_passed > 0 ? 'acceptable' : 'needs_improvement';
+      let statusText = d.total_reps_passed > 0 ? '达标' : '待改进';
+      if (d.total_reps_completed === 0) {
+        statusBadgeClass = 'not_evaluated';
+        statusText = '未计次/超时';
+      }
+
+      card.innerHTML = `
+        <div class="case-card-header">
+          <span class="case-card-title">${d.title}</span>
+          <span class="badge badge-eval ${statusBadgeClass}">${statusText}</span>
+        </div>
+        <p class="case-card-desc">源素材: ${d.filename || d.input_video}</p>
+        <div class="case-card-footer">
+          <span>完成: ${d.total_reps_completed} 次</span>
+          <span>机位: ${d.camera_view}</span>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        selectDatasetDemo(d.demo_id);
+      });
+
+      caseListEl.appendChild(card);
+    });
+  }
+
+  async function selectDatasetDemo(demoId) {
+    currentCaseId = demoId;
+    document.querySelectorAll('.case-card').forEach((card) => {
+      card.classList.toggle('active', card.dataset.id === demoId);
+    });
+
+    try {
+      const res = await fetch(`/api/dataset_demo/${demoId}`);
+      const detail = await res.json();
+      renderDatasetDemoDetail(detail);
+    } catch (e) {
+      console.error('加载数据集演示详情异常:', e);
+    }
+  }
+
+  function renderDatasetDemoDetail(detail) {
+    currentCaseNameEl.textContent = `${detail.demo_id}: ${detail.title}`;
+    currentCaseDescEl.textContent = `机位: ${detail.camera_view} | MediaPipe Tasks 真实推理 | 视频总帧数: ${detail.total_frames}`;
+
+    valMinKneeEl.textContent = `${detail.min_knee_angle ? detail.min_knee_angle.toFixed(1) : 0.0}°`;
+    valMaxTorsoEl.textContent = `${detail.max_torso_angle ? detail.max_torso_angle.toFixed(1) : 0.0}°`;
+    valExecTimeEl.textContent = `${((detail.execution_time_s || 0) * 1000).toFixed(0)} ms`;
+
+    let badgeClass = detail.total_reps_passed > 0 ? 'acceptable' : 'needs_improvement';
+    let statusText = detail.total_reps_passed > 0 ? '动作规范达标 (ACCEPTABLE)' : '存在改进项 (NEEDS_IMPROVEMENT)';
+    if (detail.total_reps_completed === 0) {
+      badgeClass = 'not_evaluated';
+      statusText = '未计次 / 拒绝评估 (NOT_EVALUATED)';
+    }
+
+    evalStatusBadge.className = `badge badge-eval ${badgeClass}`;
+    evalStatusBadge.textContent = statusText;
+
+    evalFeedbackText.textContent = detail.summary_feedback || '暂无评估建议';
+
+    hudCountEl.textContent = detail.total_reps_completed;
+    hudFsmEl.textContent = 'STANDING';
+    hudGateEl.className = 'badge badge-gate';
+    hudGateEl.textContent = 'DRAWABLE';
+
+    telemetryData = detail.telemetry || [];
+    chart.setData(telemetryData);
+
+    if (detail.video_url) {
+      videoEl.src = detail.video_url;
+      videoEl.load();
+    } else {
+      videoEl.removeAttribute('src');
+    }
+
+    renderKeyframes(detail.keyframes || []);
+  }
+
+  // 3. 切换选定黄金用例
   async function selectCase(caseId) {
     currentCaseId = caseId;
 
@@ -347,6 +458,33 @@ document.addEventListener('DOMContentLoaded', () => {
       videoEl.currentTime = Math.max(0, videoEl.currentTime - 1 / 30);
     }
   });
+
+  // 数据集演示与黄金用例选项卡切换
+  if (btnShowGolden && btnShowDataset) {
+    btnShowGolden.addEventListener('click', () => {
+      currentMode = 'GOLDEN';
+      btnShowGolden.classList.add('active');
+      btnShowGolden.style.background = '#3b82f6';
+      btnShowGolden.style.color = '#fff';
+      btnShowDataset.classList.remove('active');
+      btnShowDataset.style.background = 'transparent';
+      btnShowDataset.style.color = '#94a3b8';
+      if (selectorTag) selectorTag.textContent = 'P4 基准';
+      loadCases();
+    });
+
+    btnShowDataset.addEventListener('click', () => {
+      currentMode = 'DATASET';
+      btnShowDataset.classList.add('active');
+      btnShowDataset.style.background = '#3b82f6';
+      btnShowDataset.style.color = '#fff';
+      btnShowGolden.classList.remove('active');
+      btnShowGolden.style.background = 'transparent';
+      btnShowGolden.style.color = '#94a3b8';
+      if (selectorTag) selectorTag.textContent = 'MediaPipe 实测';
+      loadDatasetDemos();
+    });
+  }
 
   // 启动时初始化
   fetchStatus();

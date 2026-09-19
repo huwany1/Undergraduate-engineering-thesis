@@ -8,7 +8,7 @@
 [![CI Status](https://img.shields.io/badge/CI-Passing-2ea44f?style=flat-square&logo=githubactions&logoColor=white)](https://github.com/huwany1/Undergraduate-engineering-thesis/actions)
 [![Python](https://img.shields.io/badge/Python-3.10.19-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Env](https://img.shields.io/badge/Env-uv-DE5FE9?style=flat-square)](https://docs.astral.sh/uv/)
-[![Tests](https://img.shields.io/badge/Pytest-114%20Passed-brightgreen?style=flat-square&logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Pytest-119%20Passed-brightgreen?style=flat-square&logo=pytest&logoColor=white)](tests/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![YOLOv8](https://img.shields.io/badge/YOLO-v8-00FFFF?style=flat-square&logo=yolo&logoColor=111111)](https://docs.ultralytics.com/)
 [![MediaPipe](https://img.shields.io/badge/Pose-MediaPipe-00A67E?style=flat-square)](https://developers.google.com/mediapipe)
@@ -285,19 +285,23 @@ Undergraduate-engineering-thesis/
 │   ├── verify_p0_gates.py           # P0 门禁自动化审查演练脚本
 │   ├── verify_p1_gates.py           # P1 视频姿态链路门禁核验脚本
 │   ├── run_p4_validation.py         # P4 验证包一键生成与矩阵执行脚本
+│   ├── download_squat_dataset.py    # MediaPipe 真实深蹲数据集受控采集工具
+│   ├── run_dataset_demo.py          # MediaPipe 真实数据集端到端流水线演示执行器
 │   └── run_web_demo.py              # Web 答辩看板一键启动脚本
 │
-├── tests/                           # 自动化测试矩阵（114 个用例，100% 通过）
+├── tests/                           # 自动化测试矩阵（119 个用例，100% 通过）
 │   ├── test_p0_baseline_gates.py    # P0 门禁规范契约测试
 │   ├── test_p1_*.py                 # P1 视频流水线与引擎单元测试
 │   ├── test_p2_*.py                 # P2 滤波平滑与 FSM 状态机测试
 │   ├── test_p3_*.py                 # P3 规则判定与建议合规脱敏测试
 │   ├── test_p4_*.py                 # P4 确定性重放与验证矩阵测试
+│   ├── test_dataset_demo.py         # MediaPipe 真实数据集演示与 API 回归测试
 │   └── test_web_demo.py             # P5 Web API、安全防穿越与静态资源测试
 │
 ├── reports/                         # 自动生成的验证报告与交付物
 │   ├── P0_gate_verification_report.md
-│   └── validation_package/          # P4 导出的自包含报告与交付证据包 ZIP
+│   ├── validation_package/          # P4 导出的自包含报告与交付证据包 ZIP
+│   └── dataset_demo/                # MediaPipe 真实数据集端到端分析回放与评估成果
 │
 ├── yolov8-deepsort/                 # 基础模型原型：目标检测与多目标跟踪
 │   ├── demo.py                      # 基础检测+跟踪演示

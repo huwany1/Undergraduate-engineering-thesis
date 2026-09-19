@@ -222,3 +222,71 @@ class DemoService:
             return "前置质检门控一票否决：检测到受试者移出有效画幅，关键运动特征点缺失。系统克制地拒绝输出动作次数与质量评价，请调整摄像机机位确保全身入镜。"
         else:
             return f"评估状态: {status}, 主原因码: {primary_reason}。"
+
+    def get_dataset_demos(self) -> List[Dict[str, Any]]:
+        """获取真实数据集演示用例列表"""
+        demo_manifest_path = self.repo_root / "reports" / "dataset_demo" / "dataset_demo_manifest.json"
+        if not demo_manifest_path.exists():
+            return []
+        try:
+            with open(demo_manifest_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get("items", [])
+        except Exception:
+            return []
+
+    def get_dataset_demo_detail(self, demo_id: str) -> Optional[Dict[str, Any]]:
+        """获取单个真实数据集用例的详细时序、评估反馈与关键帧截图"""
+        summary_file = self.repo_root / "reports" / "dataset_demo" / f"summary_{demo_id}.json"
+        if not summary_file.exists():
+            return None
+        try:
+            with open(summary_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # 读取逐帧时序 Sidecar
+            sidecar_file = self.repo_root / "reports" / "dataset_demo" / "sidecars" / f"{demo_id}_frames.jsonl"
+            telemetry = []
+            if sidecar_file.exists():
+                with open(sidecar_file, "r", encoding="utf-8") as sf:
+                    for line in sf:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        rec = json.loads(line)
+                        kine = rec.get("kinematics", {})
+                        telemetry.append({
+                            "frame_index": rec.get("frame_index", 0),
+                            "time_s": round(rec.get("timeline_us", 0) / 1e6, 3),
+                            "knee_angle": round(kine.get("filtered_knee_angle", 0.0), 1),
+                            "raw_knee_angle": round(kine.get("raw_knee_angle", 0.0), 1),
+                            "torso_angle": round(kine.get("filtered_torso_angle", 0.0), 1),
+                            "raw_torso_angle": round(kine.get("raw_torso_angle", 0.0), 1),
+                            "fsm_state": rec.get("fsm_state", "UNKNOWN"),
+                            "event": rec.get("event", "NONE"),
+                            "is_valid": kine.get("is_valid", True),
+                            "count": rec.get("cumulative_rep_count", 0),
+                        })
+
+            data["telemetry"] = telemetry
+
+            # 规范化关键帧 image_url
+            for kf in data.get("keyframes", []):
+                raw_path = kf.get("file_path", "")
+                fname = Path(raw_path).name if raw_path else ""
+                kf["image_url"] = f"/api/media/dataset_demo/screenshots/{fname}" if fname else None
+
+            # 构造综合提示文案
+            if not data.get("summary_feedback"):
+                if data.get("assessments"):
+                    ass_texts = [
+                        f"Rep #{idx}: {a.get('summary_feedback', '')}"
+                        for idx, a in enumerate(data["assessments"], 1)
+                    ]
+                    data["summary_feedback"] = " | ".join(ass_texts)
+                else:
+                    data["summary_feedback"] = f"动作评估就绪，共识别完成深蹲 {data.get('total_reps_completed', 0)} 次。"
+
+            return data
+        except Exception:
+            return None

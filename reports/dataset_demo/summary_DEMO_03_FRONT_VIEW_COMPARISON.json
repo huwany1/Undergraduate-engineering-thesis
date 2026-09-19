@@ -1,0 +1,35 @@
+{
+  "demo_id": "DEMO_03_FRONT_VIEW_COMPARISON",
+  "title": "正面视角深蹲对比素材 (Front-View Squat Comparison)",
+  "camera_view": "FRONTAL_NON_ORTHOGONAL",
+  "input_video": "data/S1_raw_sensitive/demo_squats/sample_squat_front.mp4",
+  "annotated_video": "reports/dataset_demo/replays/DEMO_03_FRONT_VIEW_COMPARISON_annotated.mp4",
+  "has_video": true,
+  "video_url": "/api/media/dataset_demo/replays/DEMO_03_FRONT_VIEW_COMPARISON_annotated.mp4",
+  "total_frames": 187,
+  "total_reps_completed": 1,
+  "total_reps_passed": 1,
+  "min_knee_angle": 41.8,
+  "max_torso_angle": 30.0,
+  "execution_time_s": 5.91,
+  "assessments": [
+    {
+      "rep_id": 1,
+      "overall_status": "ACCEPTABLE",
+      "primary_reason_code": "ACCEPTABLE",
+      "violations": [],
+      "summary_feedback": "动作规范，下蹲深度充分，躯干姿态稳定。",
+      "aggregation_policy_version": "AGGR-SQUAT-v1.0"
+    }
+  ],
+  "keyframes": [
+    {
+      "event_type": "REP_COMPLETED",
+      "frame_index": 179,
+      "timeline_us": 7160000,
+      "description": "动作关键事件帧: REP_COMPLETED (膝角: 173.6°, 前倾: 9.2°)",
+      "file_path": "reports/dataset_demo/screenshots/DEMO_03_FRONT_VIEW_COMPARISON_annotated_kf_179_REP_COMPLETED.png"
+    }
+  ],
+  "telemetry_sidecar": "reports/dataset_demo/sidecars/DEMO_03_FRONT_VIEW_COMPARISON_frames.jsonl"
+}

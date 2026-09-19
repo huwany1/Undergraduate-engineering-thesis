@@ -1,0 +1,206 @@
+{
+  "demo_id": "DEMO_02_DEEP_SQUAT",
+  "title": "深度屈曲深蹲演示素材 (Deep Knee Flexion Squat)",
+  "camera_view": "SIDE_VIEW_DIAGONAL",
+  "input_video": "data/S1_raw_sensitive/demo_squats/sample_squat_deep.mp4",
+  "annotated_video": "reports/dataset_demo/replays/DEMO_02_DEEP_SQUAT_annotated.mp4",
+  "has_video": true,
+  "video_url": "/api/media/dataset_demo/replays/DEMO_02_DEEP_SQUAT_annotated.mp4",
+  "total_frames": 859,
+  "total_reps_completed": 6,
+  "total_reps_passed": 0,
+  "min_knee_angle": 62.7,
+  "max_torso_angle": 58.1,
+  "execution_time_s": 25.12,
+  "assessments": [
+    {
+      "rep_id": 1,
+      "overall_status": "NEEDS_IMPROVEMENT",
+      "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+      "violations": [
+        {
+          "rule_id": "R-LEAN-001",
+          "reason_code": "EXCESSIVE_TORSO_LEAN",
+          "severity": "WARNING_SEVERE",
+          "evidence": {
+            "feature_name": "max_torso_lean_angle",
+            "measured_value": 53.49,
+            "threshold_value": 45.0,
+            "delta_value": 8.49,
+            "unit": "deg",
+            "trigger_frame_index": 66,
+            "trigger_timeline_us": 2640000
+          },
+          "feedback_text": "提示：躯干过度前倾（测得前倾角 53.5°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+        }
+      ],
+      "summary_feedback": "提示：躯干过度前倾（测得前倾角 53.5°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。",
+      "aggregation_policy_version": "AGGR-SQUAT-v1.0"
+    },
+    {
+      "rep_id": 2,
+      "overall_status": "NEEDS_IMPROVEMENT",
+      "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+      "violations": [
+        {
+          "rule_id": "R-LEAN-001",
+          "reason_code": "EXCESSIVE_TORSO_LEAN",
+          "severity": "WARNING_SEVERE",
+          "evidence": {
+            "feature_name": "max_torso_lean_angle",
+            "measured_value": 52.09,
+            "threshold_value": 45.0,
+            "delta_value": 7.09,
+            "unit": "deg",
+            "trigger_frame_index": 177,
+            "trigger_timeline_us": 7080000
+          },
+          "feedback_text": "提示：躯干过度前倾（测得前倾角 52.1°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+        }
+      ],
+      "summary_feedback": "提示：躯干过度前倾（测得前倾角 52.1°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。",
+      "aggregation_policy_version": "AGGR-SQUAT-v1.0"
+    },
+    {
+      "rep_id": 3,
+      "overall_status": "NEEDS_IMPROVEMENT",
+      "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+      "violations": [
+        {
+          "rule_id": "R-LEAN-001",
+          "reason_code": "EXCESSIVE_TORSO_LEAN",
+          "severity": "WARNING_SEVERE",
+          "evidence": {
+            "feature_name": "max_torso_lean_angle",
+            "measured_value": 54.19,
+            "threshold_value": 45.0,
+            "delta_value": 9.19,
+            "unit": "deg",
+            "trigger_frame_index": 303,
+            "trigger_timeline_us": 12120000
+          },
+          "feedback_text": "提示：躯干过度前倾（测得前倾角 54.2°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+        }
+      ],
+      "summary_feedback": "提示：躯干过度前倾（测得前倾角 54.2°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。",
+      "aggregation_policy_version": "AGGR-SQUAT-v1.0"
+    },
+    {
+      "rep_id": 4,
+      "overall_status": "NEEDS_IMPROVEMENT",
+      "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+      "violations": [
+        {
+          "rule_id": "R-LEAN-001",
+          "reason_code": "EXCESSIVE_TORSO_LEAN",
+          "severity": "WARNING_SEVERE",
+          "evidence": {
+            "feature_name": "max_torso_lean_angle",
+            "measured_value": 58.12,
+            "threshold_value": 45.0,
+            "delta_value": 13.12,
+            "unit": "deg",
+            "trigger_frame_index": 433,
+            "trigger_timeline_us": 17320000
+          },
+          "feedback_text": "提示：躯干过度前倾（测得前倾角 58.1°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+        }
+      ],
+      "summary_feedback": "提示：躯干过度前倾（测得前倾角 58.1°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。",
+      "aggregation_policy_version": "AGGR-SQUAT-v1.0"
+    },
+    {
+      "rep_id": 5,
+      "overall_status": "NEEDS_IMPROVEMENT",
+      "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+      "violations": [
+        {
+          "rule_id": "R-LEAN-001",
+          "reason_code": "EXCESSIVE_TORSO_LEAN",
+          "severity": "WARNING_SEVERE",
+          "evidence": {
+            "feature_name": "max_torso_lean_angle",
+            "measured_value": 55.26,
+            "threshold_value": 45.0,
+            "delta_value": 10.26,
+            "unit": "deg",
+            "trigger_frame_index": 586,
+            "trigger_timeline_us": 23440000
+          },
+          "feedback_text": "提示：躯干过度前倾（测得前倾角 55.3°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+        }
+      ],
+      "summary_feedback": "提示：躯干过度前倾（测得前倾角 55.3°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。",
+      "aggregation_policy_version": "AGGR-SQUAT-v1.0"
+    },
+    {
+      "rep_id": 6,
+      "overall_status": "NEEDS_IMPROVEMENT",
+      "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+      "violations": [
+        {
+          "rule_id": "R-LEAN-001",
+          "reason_code": "EXCESSIVE_TORSO_LEAN",
+          "severity": "WARNING_SEVERE",
+          "evidence": {
+            "feature_name": "max_torso_lean_angle",
+            "measured_value": 56.88,
+            "threshold_value": 45.0,
+            "delta_value": 11.88,
+            "unit": "deg",
+            "trigger_frame_index": 767,
+            "trigger_timeline_us": 30680000
+          },
+          "feedback_text": "提示：躯干过度前倾（测得前倾角 56.9°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+        }
+      ],
+      "summary_feedback": "提示：躯干过度前倾（测得前倾角 56.9°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。",
+      "aggregation_policy_version": "AGGR-SQUAT-v1.0"
+    }
+  ],
+  "keyframes": [
+    {
+      "event_type": "REP_COMPLETED",
+      "frame_index": 98,
+      "timeline_us": 3920000,
+      "description": "动作关键事件帧: REP_COMPLETED (膝角: 166.0°, 前倾: 23.9°)",
+      "file_path": "reports/dataset_demo/screenshots/DEMO_02_DEEP_SQUAT_annotated_kf_98_REP_COMPLETED.png"
+    },
+    {
+      "event_type": "REP_COMPLETED",
+      "frame_index": 209,
+      "timeline_us": 8359999,
+      "description": "动作关键事件帧: REP_COMPLETED (膝角: 169.8°, 前倾: 28.6°)",
+      "file_path": "reports/dataset_demo/screenshots/DEMO_02_DEEP_SQUAT_annotated_kf_209_REP_COMPLETED.png"
+    },
+    {
+      "event_type": "REP_COMPLETED",
+      "frame_index": 339,
+      "timeline_us": 13560000,
+      "description": "动作关键事件帧: REP_COMPLETED (膝角: 168.0°, 前倾: 28.0°)",
+      "file_path": "reports/dataset_demo/screenshots/DEMO_02_DEEP_SQUAT_annotated_kf_339_REP_COMPLETED.png"
+    },
+    {
+      "event_type": "REP_COMPLETED",
+      "frame_index": 469,
+      "timeline_us": 18760000,
+      "description": "动作关键事件帧: REP_COMPLETED (膝角: 169.2°, 前倾: 30.4°)",
+      "file_path": "reports/dataset_demo/screenshots/DEMO_02_DEEP_SQUAT_annotated_kf_469_REP_COMPLETED.png"
+    },
+    {
+      "event_type": "REP_COMPLETED",
+      "frame_index": 625,
+      "timeline_us": 25000000,
+      "description": "动作关键事件帧: REP_COMPLETED (膝角: 173.5°, 前倾: 27.3°)",
+      "file_path": "reports/dataset_demo/screenshots/DEMO_02_DEEP_SQUAT_annotated_kf_625_REP_COMPLETED.png"
+    },
+    {
+      "event_type": "REP_COMPLETED",
+      "frame_index": 813,
+      "timeline_us": 32520000,
+      "description": "动作关键事件帧: REP_COMPLETED (膝角: 173.5°, 前倾: 23.3°)",
+      "file_path": "reports/dataset_demo/screenshots/DEMO_02_DEEP_SQUAT_annotated_kf_813_REP_COMPLETED.png"
+    }
+  ],
+  "telemetry_sidecar": "reports/dataset_demo/sidecars/DEMO_02_DEEP_SQUAT_frames.jsonl"
+}

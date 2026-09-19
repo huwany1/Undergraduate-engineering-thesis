@@ -167,7 +167,7 @@ class P2TemporalPipeline:
                 frame_idx = record.get("frame_index", total_frames - 1)
                 timeline_us = record.get("timeline_us", frame_idx * 33333)
 
-                pose_result = record.get("pose_result", {})
+                pose_result = record.get("pose_result") or record.get("pose", {})
                 landmarks = pose_result.get("landmarks_2d", [])
 
                 quality = record.get("quality", {})

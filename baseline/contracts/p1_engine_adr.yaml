@@ -44,7 +44,10 @@ model_asset_specification:
   filename: "pose_landmarker_full.task"
   controlled_local_dir: "models"
   official_download_url: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task"
-  expected_sha256: "c1851e3914a84949ad4cb96e9fa22a452efeb38d2f50c05f01311ff0567e9f3b"
+  expected_sha256: "4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad"
+  legacy_sha256_whitelist:
+    - "c1851e3914a84949ad4cb96e9fa22a452efeb38d2f50c05f01311ff0567e9f3b"
+    - "4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad"
   license: "Apache-2.0"
   git_excluded: true
 

@@ -34,12 +34,18 @@
     <!-- 左侧：用例选择与配置侧边栏 -->
     <aside class="sidebar">
       <section class="panel case-selector-panel">
-        <div class="panel-header">
-          <h2>5 大黄金测试场景</h2>
-          <span class="hint-tag">确定性验证基准</span>
+        <div class="panel-header" style="flex-direction: column; align-items: stretch; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 id="selector-title">动作评估用例清单</h2>
+            <span class="hint-tag" id="selector-tag">P4 基准</span>
+          </div>
+          <div class="source-switcher" style="display: flex; gap: 4px; background: rgba(255,255,255,0.06); padding: 3px; border-radius: 6px;">
+            <button class="switcher-btn active" id="btn-show-golden" style="flex: 1; padding: 6px 8px; border: none; background: #3b82f6; color: #fff; font-size: 12px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;">P4 黄金用例</button>
+            <button class="switcher-btn" id="btn-show-dataset" style="flex: 1; padding: 6px 8px; border: none; background: transparent; color: #94a3b8; font-size: 12px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;">MediaPipe 真实数据</button>
+          </div>
         </div>
         <div class="case-list" id="case-list">
-          <!-- 动态注入 5 大黄金用例卡片 -->
+          <!-- 动态注入用例卡片 -->
           <div class="loading-spinner">正在加载用例清单...</div>
         </div>
       </section>

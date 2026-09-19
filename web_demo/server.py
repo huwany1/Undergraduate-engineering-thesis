@@ -99,6 +99,16 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
             elif path == "/api/reports/validation":
                 data = self.service.get_validation_report()
                 self._send_json(data)
+            elif path == "/api/dataset_demos":
+                data = self.service.get_dataset_demos()
+                self._send_json(data)
+            elif path.startswith("/api/dataset_demo/"):
+                demo_id = path.split("/api/dataset_demo/")[1].strip("/")
+                data = self.service.get_dataset_demo_detail(demo_id)
+                if data is None:
+                    self._send_json({"error": f"Dataset demo not found: {demo_id}"}, status=HTTPStatus.NOT_FOUND)
+                else:
+                    self._send_json(data)
             elif path.startswith("/api/media/"):
                 self._handle_media_get(path)
             else:
@@ -112,10 +122,14 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
         特别针对 HTML5 <video> 标签在进度条拖拽与时间寻址 (Seek) 场景
         """
         subpath = path.replace("/api/media/", "")
-        media_root = self.repo_root / "reports" / "validation_package"
+        if subpath.startswith("dataset_demo/"):
+            media_root = self.repo_root / "reports" / "dataset_demo"
+            subpath = subpath[len("dataset_demo/"):]
+        else:
+            media_root = self.repo_root / "reports" / "validation_package"
 
         file_path = (media_root / subpath).resolve()
-        # 安全防御：禁止逃逸出 validation_package
+        # 安全防御：禁止逃逸出指定媒体根目录
         if not str(file_path).startswith(str(media_root.resolve())):
             self._send_json({"error": "Forbidden"}, status=HTTPStatus.FORBIDDEN)
             return
