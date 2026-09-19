@@ -331,3 +331,26 @@ def test_rest_api_llm_feedback_and_chat(web_server):
         res_json = json.loads(resp.read().decode("utf-8"))
         assert "reply" in res_json
         assert len(res_json["reply"]) > 0
+
+
+def test_load_dotenv_fallback_and_auto_env_injection(tmp_path, monkeypatch):
+    """验证 .env 文件安全解析与无感自动载入机制"""
+    from web_demo.llm_coach import load_dotenv_fallback
+
+    # 1. 隔离当前环境变量
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+
+    # 2. 创建临时 .env 文件
+    env_file = tmp_path / ".env"
+    env_file.write_text("# 配置文件注释\nDEEPSEEK_API_KEY=sk-test-auto-key-123456\nOTHER_VAR=test\n", encoding="utf-8")
+
+    # 3. 触发解析
+    loaded_key = load_dotenv_fallback(repo_root=str(tmp_path))
+    assert loaded_key == "sk-test-auto-key-123456"
+
+    # 4. 验证 DeepSeekCoachService 在没有全局变量时自动读取
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    service = DeepSeekCoachService(repo_root=str(tmp_path))
+    summary = service.get_config_summary()
+    assert summary["has_key"] is True
+    assert summary["masked_key"] == "sk-****3456"

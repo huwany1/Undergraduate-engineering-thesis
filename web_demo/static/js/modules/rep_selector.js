@@ -311,7 +311,11 @@
       }
 
       if (this.chart) {
-        this.chart.highlightRepSlice(rep.start_time_s, rep.end_time_s, rep.bottom_time_s);
+        if (typeof this.chart.highlightRepSlice === 'function') {
+          this.chart.highlightRepSlice(rep.start_time_s, rep.end_time_s, rep.bottom_time_s);
+        } else if (typeof this.chart.setRepHighlight === 'function') {
+          this.chart.setRepHighlight(rep.start_time_s, rep.end_time_s, rep.bottom_time_s);
+        }
       }
 
       if (this.videoEl) {

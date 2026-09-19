@@ -28,6 +28,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from web_demo.server import run_server
+from web_demo.llm_coach import load_dotenv_fallback
+
+# 启动前自动载入本地 .env 文件（若存在）
+load_dotenv_fallback(REPO_ROOT)
 
 
 def find_available_port(start_port: int = 8080, host: str = "127.0.0.1", max_attempts: int = 20) -> int:

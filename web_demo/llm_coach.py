@@ -13,8 +13,36 @@ import time
 import json
 import urllib.request
 import urllib.error
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Tuple
+
+
+def load_dotenv_fallback(repo_root: Optional[str] = None) -> Optional[str]:
+    """从项目根目录 .env 文件安全解析 DEEPSEEK_API_KEY（标准库无第三方依赖）"""
+    candidates = []
+    if repo_root:
+        candidates.append(Path(repo_root) / ".env")
+    candidates.append(Path(__file__).resolve().parent.parent / ".env")
+    candidates.append(Path.cwd() / ".env")
+
+    for p in candidates:
+        if p.is_file():
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'\"")
+                        if k == "DEEPSEEK_API_KEY" and v:
+                            os.environ["DEEPSEEK_API_KEY"] = v
+                            return v
+            except Exception:
+                pass
+    return None
 
 
 @dataclass
@@ -182,8 +210,10 @@ class DeepSeekCoachService:
 
     def __init__(self, repo_root: Optional[str] = None):
         self.repo_root = repo_root
-        # 默认优先从环境变量读取，若无则留空等待 UI 配置
+        # 默认优先从环境变量读取，若无则尝试从本地 .env 文件安全载入
         env_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+        if not env_key:
+            env_key = load_dotenv_fallback(repo_root) or ""
         self.config = LLMConfig(api_key=env_key)
 
     def get_config_summary(self) -> Dict[str, Any]:

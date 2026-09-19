@@ -444,6 +444,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderKeyframes(detail.keyframes || []);
     renderMultiRepSection(detail);
+    if (llmCoach) {
+      llmCoach.setCurrentCase(detail.demo_id, detail);
+    }
   }
 
   // 3. 切换选定黄金用例
@@ -517,9 +520,12 @@ document.addEventListener('DOMContentLoaded', () => {
       videoEl.removeAttribute('src');
     }
 
-    // 渲染特征帧快照
+    // 渲染特征帧快照与切片
     renderKeyframes(detail.keyframes || []);
     renderMultiRepSection(detail);
+    if (llmCoach) {
+      llmCoach.setCurrentCase(detail.case_id, detail);
+    }
   }
 
   function renderKeyframes(keyframes) {
@@ -546,11 +552,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       keyframesGrid.appendChild(card);
     });
-
-    // 驱动 AI 智能教练深度点评与上下文更新 (维度五)
-    if (llmCoach) {
-      llmCoach.setCurrentCase(detail.case_id, detail);
-    }
   }
 
   // 3.1 连续动作切片下钻与整组宏观看板 (委托由 RepSelector 模块驱动)

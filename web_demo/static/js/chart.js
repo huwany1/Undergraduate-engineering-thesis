@@ -58,6 +58,10 @@ class TelemetryChart {
     this.render();
   }
 
+  highlightRepSlice(startSec, endSec, bottomSec = null, repLabel = '') {
+    this.setRepHighlight(startSec, endSec, bottomSec, repLabel);
+  }
+
   clearRepHighlight() {
     this.repHighlight = null;
     this.render();
