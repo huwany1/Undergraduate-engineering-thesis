@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, Dict, List
 
 from .service import DemoService
 
@@ -50,6 +50,18 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
             return
         elif path.startswith("/api/live/session/") and path.endswith("/stop"):
             self._handle_live_stop()
+            return
+        elif path == "/api/llm/config":
+            self._handle_llm_config_post()
+            return
+        elif path == "/api/llm/test":
+            self._handle_llm_test_post()
+            return
+        elif path == "/api/llm/feedback":
+            self._handle_llm_feedback_post()
+            return
+        elif path == "/api/llm/chat":
+            self._handle_llm_chat_post()
             return
         self._send_json({"error": f"Unknown POST endpoint: {path}"}, status=HTTPStatus.NOT_FOUND)
 
@@ -116,6 +128,75 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(summary, status=HTTPStatus.OK)
         except Exception as ex:
             self._send_json({"error": f"Failed to stop live session: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _read_json_body(self) -> Dict[str, Any]:
+        """读取并解析 JSON 请求体"""
+        content_length_str = self.headers.get("Content-Length")
+        if not content_length_str:
+            return {}
+        try:
+            content_length = int(content_length_str)
+        except ValueError:
+            return {}
+        if content_length <= 0 or content_length > 10 * 1024 * 1024:
+            return {}
+        raw_bytes = self.rfile.read(content_length)
+        try:
+            return json.loads(raw_bytes.decode("utf-8"))
+        except Exception:
+            return {}
+
+    def _handle_llm_config_post(self):
+        """保存大模型 API Key 与端点配置"""
+        try:
+            body = self._read_json_body()
+            api_key = body.get("api_key")
+            base_url = body.get("base_url")
+            model = body.get("model")
+            res = self.service.update_llm_config(api_key=api_key, base_url=base_url, model=model)
+            self._send_json(res, status=HTTPStatus.OK)
+        except Exception as ex:
+            self._send_json({"error": f"Failed to update LLM config: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_llm_test_post(self):
+        """测试 DeepSeek API 连通性与往返延迟"""
+        try:
+            body = self._read_json_body()
+            api_key = body.get("api_key")
+            base_url = body.get("base_url")
+            model = body.get("model")
+            res = self.service.test_llm_connection(api_key=api_key, base_url=base_url, model=model)
+            self._send_json(res, status=HTTPStatus.OK)
+        except Exception as ex:
+            self._send_json({"error": f"Failed to test LLM connection: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_llm_feedback_post(self):
+        """请求生成动作报告的 AI 深度指导"""
+        try:
+            body = self._read_json_body()
+            case_id = body.get("case_id")
+            report_data = body.get("report_data")
+            prompt_override = body.get("prompt_override")
+            res = self.service.generate_llm_feedback(case_id=case_id, report_data=report_data, prompt_override=prompt_override)
+            self._send_json(res, status=HTTPStatus.OK)
+        except Exception as ex:
+            self._send_json({"error": f"Failed to generate LLM feedback: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_llm_chat_post(self):
+        """多轮问答对话"""
+        try:
+            body = self._read_json_body()
+            messages = body.get("messages", [])
+            case_id = body.get("case_id")
+            report_data = body.get("report_data")
+            if not isinstance(messages, list):
+                self._send_json({"error": "messages must be a list"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            res = self.service.chat_with_llm(messages=messages, case_id=case_id, report_data=report_data)
+            self._send_json(res, status=HTTPStatus.OK)
+        except Exception as ex:
+            self._send_json({"error": f"Failed to chat with LLM: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
 
 
     def _handle_api_upload(self):
@@ -249,6 +330,9 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
                     self._send_json(task_data)
             elif path == "/api/uploads":
                 data = self.service.list_uploaded_cases()
+                self._send_json(data)
+            elif path == "/api/llm/config":
+                data = self.service.get_llm_config()
                 self._send_json(data)
             elif path.startswith("/api/live/session/"):
                 session_id = path.split("/api/live/session/")[1].strip("/")

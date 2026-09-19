@@ -19,6 +19,7 @@ from p2_temporal.analytics import MultiRepAnalyticsEngine
 from .contracts import UniversalFeedbackFormatter, AssessmentReportDto, validate_report_dict
 from .analyzer import OnlineAnalysisManager, AnalysisTaskStatus
 from .live_manager import LiveStreamManager
+from .llm_coach import DeepSeekCoachService
 
 
 class DemoService:
@@ -36,6 +37,7 @@ class DemoService:
         self.registry = GoldenAssetRegistry()
         self.analysis_manager = OnlineAnalysisManager(repo_root=self.repo_root)
         self.live_manager = LiveStreamManager(repo_root=self.repo_root)
+        self.llm_coach = DeepSeekCoachService(repo_root=str(self.repo_root))
 
     def get_status(self) -> Dict[str, Any]:
         """获取系统状态与工程基线信息"""
@@ -523,5 +525,66 @@ class DemoService:
     def cleanup_idle_live_sessions(self, timeout_sec: Optional[float] = None) -> int:
         """显式清理闲置超时的实时会话 (高可用运维)"""
         return self.live_manager.cleanup_idle_sessions(timeout_sec=timeout_sec)
+
+    # ---------------------------------------------------------------------
+    # 大模型 (LLM) 智能教练与连通性接口 (维度五)
+    # ---------------------------------------------------------------------
+
+    def get_llm_config(self) -> Dict[str, Any]:
+        """获取当前大模型配置摘要（脱敏显示）"""
+        return self.llm_coach.get_config_summary()
+
+    def update_llm_config(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """更新大模型 API 密钥与端点设置"""
+        return self.llm_coach.update_config(api_key=api_key, base_url=base_url, model=model)
+
+    def test_llm_connection(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """测试 DeepSeek API 连通性与实测 RTT 往返延迟"""
+        return self.llm_coach.test_connection(api_key=api_key, base_url=base_url, model=model)
+
+    def generate_llm_feedback(
+        self,
+        case_id: Optional[str] = None,
+        report_data: Optional[Dict[str, Any]] = None,
+        prompt_override: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """为指定用例或报告数据生成 AI 教练深度点评"""
+        target_report = report_data
+        if not target_report and case_id:
+            target_report = self.get_case_detail(case_id)
+
+        if not target_report:
+            target_report = {
+                "case_name": case_id or "未指定用例",
+                "actual_count": 0,
+                "actual_status": "ACCEPTABLE",
+                "actual_primary_reason": "R-PASS",
+            }
+
+        return self.llm_coach.generate_coach_advice(target_report, prompt_override=prompt_override)
+
+    def chat_with_llm(
+        self,
+        messages: List[Dict[str, str]],
+        case_id: Optional[str] = None,
+        report_data: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """与 AI 健身教练围绕当前动作数据进行多轮互动答疑"""
+        target_report = report_data
+        if not target_report and case_id:
+            target_report = self.get_case_detail(case_id)
+
+        return self.llm_coach.chat_with_coach(messages, report_data=target_report)
+
 
 

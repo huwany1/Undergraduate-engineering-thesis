@@ -14,6 +14,7 @@ const AudioManager = (window.SquatDemo && window.SquatDemo.AudioManager) || wind
 const LiveCameraController = (window.SquatDemo && window.SquatDemo.LiveCameraController) || window.LiveCameraController;
 const ApiClient = (window.SquatDemo && window.SquatDemo.ApiClient) || window.ApiClient;
 const RepSelector = (window.SquatDemo && window.SquatDemo.RepSelector) || window.RepSelector;
+const LLMCoachUI = (window.SquatDemo && window.SquatDemo.LLMCoachUI) || window.LLMCoachUI;
 
 document.addEventListener('DOMContentLoaded', () => {
   // DOM 元素引用
@@ -246,6 +247,12 @@ document.addEventListener('DOMContentLoaded', () => {
     evalStatusBadge,
     evalFeedbackText,
   }, chart, videoEl);
+
+  // 实例化 AI 智能健身教练控制器 (维度五)
+  const llmCoach = LLMCoachUI ? new LLMCoachUI() : null;
+  if (llmCoach) {
+    llmCoach.init();
+  }
 
   // 1. 获取系统状态
   async function fetchStatus() {
@@ -539,6 +546,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       keyframesGrid.appendChild(card);
     });
+
+    // 驱动 AI 智能教练深度点评与上下文更新 (维度五)
+    if (llmCoach) {
+      llmCoach.setCurrentCase(detail.case_id, detail);
+    }
   }
 
   // 3.1 连续动作切片下钻与整组宏观看板 (委托由 RepSelector 模块驱动)
@@ -1184,6 +1196,11 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchStatus();
     if (summary && summary.repetitions && summary.repetitions.length > 0) {
       renderMultiRepSection(summary);
+    }
+
+    // 驱动 AI 智能教练对本次摄像头会话进行深度点评
+    if (llmCoach) {
+      llmCoach.setCurrentCase(summary.saved_case_id || 'live_session', summary);
     }
 
     caseListEl.innerHTML = `

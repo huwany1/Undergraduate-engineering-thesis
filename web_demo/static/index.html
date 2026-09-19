@@ -21,7 +21,14 @@
         </div>
       </div>
     </div>
-    <div class="header-right">
+    <div class="header-right" style="display: flex; gap: 8px; align-items: center;">
+      <button class="btn btn-outline" id="btn-open-llm-config" title="配置 DeepSeek API Key 与测试连通性" style="display: flex; align-items: center; gap: 6px; border-color: rgba(59, 130, 246, 0.4);">
+        <span>🤖</span>
+        <span>DeepSeek AI 教练</span>
+        <span class="badge badge-llm-offline" id="header-llm-badge" style="font-size: 10px; padding: 2px 6px;">
+          <span id="header-llm-status-text">未配置 Key</span>
+        </span>
+      </button>
       <button class="btn btn-primary" id="open-matrix-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
         P4 答辩验证全景矩阵
@@ -364,6 +371,45 @@
             <h3>证据化训练提示 (Sanitized Guidance)</h3>
             <p id="eval-feedback-text" class="feedback-text">正在评估...</p>
           </div>
+
+          <!-- AI 智能健身教练深度反馈与多轮问答 (维度五) -->
+          <div class="ai-coach-box" id="ai-coach-box">
+            <div class="ai-coach-header">
+              <div class="ai-coach-title-row">
+                <span class="ai-avatar-icon">🤖</span>
+                <span class="ai-title-text">AI 智能健身教练深度点评 (DeepSeek)</span>
+                <span class="badge badge-eval acceptable" id="ai-coach-model-badge">准备就绪</span>
+              </div>
+              <button class="btn btn-sm btn-outline" id="btn-generate-ai-advice" title="结合实测生物力学数据重新生成 AI 点评">
+                🔄 重新生成 AI 点评
+              </button>
+            </div>
+            <div class="ai-coach-body">
+              <p id="ai-coach-advice-text" class="ai-advice-text">正在初始化 AI 教练评语...</p>
+            </div>
+
+            <!-- 多轮交互对话区 -->
+            <div class="ai-chat-section">
+              <div class="ai-chat-header">
+                <span>💬 向 AI 教练追问本轮动作：</span>
+                <div class="quick-prompts" id="ai-coach-quick-prompts">
+                  <button class="prompt-chip" data-prompt="为什么我下蹲深度不足？怎么改善？">📐 深度不足怎么改？</button>
+                  <button class="prompt-chip" data-prompt="躯干前倾严重，如何调整呼吸和核心？">🏋️ 前倾过大怎么调？</button>
+                  <button class="prompt-chip" data-prompt="如何控制下蹲与起身的收缩节奏？">⏱️ 动作节奏建议？</button>
+                </div>
+              </div>
+              <div class="chat-messages-container" id="ai-coach-chat-messages">
+                <div class="chat-bubble ai">
+                  <span class="chat-avatar">🤖</span>
+                  <div class="chat-text">你好！我是你的 AI 健身教练。我已经加载了本轮动作数据，随时可以问我关于深度、角度或节奏的改善方法！</div>
+                </div>
+              </div>
+              <div class="chat-input-bar">
+                <input type="text" id="ai-coach-chat-input" class="chat-input" placeholder="输入你想咨询的问题，按 Enter 发送..." />
+                <button class="btn btn-primary btn-send-chat" id="btn-send-llm-chat">发送</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 语义关键帧画廊 -->
@@ -444,12 +490,65 @@
     </div>
   </dialog>
 
+  <!-- DeepSeek API 配置与连通性测试模态弹窗 (维度五) -->
+  <dialog id="llm-config-dialog" class="modal-dialog llm-modal-dialog">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 20px;">🤖</span>
+        <h2>DeepSeek 大模型（LLM）API 配置与测试</h2>
+      </div>
+      <button class="btn-close" id="btn-close-llm-config">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-subtitle" style="color: #94a3b8; font-size: 13px; margin-bottom: 16px;">
+        配置 DeepSeek API 密钥以启用 AI 健身教练多模态深度指导与交互问答。支持 OpenAI 协议兼容端点。
+      </p>
+
+      <div class="form-group">
+        <label for="llm-api-key-input">DeepSeek API Key (密钥):</label>
+        <div class="input-with-action">
+          <input type="password" id="llm-api-key-input" class="form-control" placeholder="sk-..." autocomplete="off" />
+          <button type="button" class="btn btn-sm btn-outline" id="btn-toggle-key-visibility" title="显隐密钥">👁️</button>
+        </div>
+        <span class="input-hint">密钥仅保存在本地内存与会话中，绝不上传第三方服务器。</span>
+      </div>
+
+      <div class="form-group">
+        <label for="llm-base-url-input">API Base URL (接口端点):</label>
+        <input type="text" id="llm-base-url-input" class="form-control" value="https://api.deepseek.com" />
+        <span class="input-hint">默认为 DeepSeek 官方端点 <code>https://api.deepseek.com</code></span>
+      </div>
+
+      <div class="form-group">
+        <label for="llm-model-select">推理模型 (Model):</label>
+        <select id="llm-model-select" class="form-control">
+          <option value="deepseek-chat" selected>deepseek-chat (通用对话，推荐)</option>
+          <option value="deepseek-reasoner">deepseek-reasoner (深度思考与复杂推理)</option>
+        </select>
+      </div>
+
+      <!-- 连通性测试结果面板 -->
+      <div id="llm-test-result" class="test-result-box" style="display: none;"></div>
+
+      <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+        <button type="button" class="btn btn-outline" id="btn-test-llm-connection">
+          ⚡ 测试 API 连接
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('llm-config-dialog').close()">取消</button>
+          <button type="button" class="btn btn-primary" id="btn-save-llm-config">保存并启用</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <!-- 引入纯原生前端模块 (组件化拆分) -->
   <script src="/static/js/chart.js"></script>
   <script src="/static/js/modules/api_client.js"></script>
   <script src="/static/js/modules/skeleton_renderer.js"></script>
   <script src="/static/js/modules/live_stream.js"></script>
   <script src="/static/js/modules/rep_selector.js"></script>
+  <script src="/static/js/modules/llm_coach_ui.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

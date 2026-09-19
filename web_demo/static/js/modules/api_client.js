@@ -106,6 +106,36 @@
       const url = `/api/live/session/${encodeURIComponent(sessionId)}/stop`;
       return this.post(url, null);
     }
+
+    // --- 大模型 (LLM) 智能教练接口 ---
+
+    static async getLLMConfig() {
+      return this.get('/api/llm/config');
+    }
+
+    static async updateLLMConfig(payload) {
+      return this.post('/api/llm/config', JSON.stringify(payload), {
+        'Content-Type': 'application/json',
+      });
+    }
+
+    static async testLLMConnection(payload) {
+      return this.post('/api/llm/test', JSON.stringify(payload), {
+        'Content-Type': 'application/json',
+      });
+    }
+
+    static async getLLMFeedback(payload) {
+      return this.post('/api/llm/feedback', JSON.stringify(payload), {
+        'Content-Type': 'application/json',
+      });
+    }
+
+    static async chatWithLLM(payload) {
+      return this.post('/api/llm/chat', JSON.stringify(payload), {
+        'Content-Type': 'application/json',
+      });
+    }
   }
 
   // 挂载到统一命名空间与全局
