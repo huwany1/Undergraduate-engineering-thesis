@@ -37,12 +37,86 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        """处理 HTTP POST 请求 (如视频上传与在线分析启动)"""
+        """处理 HTTP POST 请求 (如视频上传、在线分析与实时摄像头帧交互)"""
         path = self.path.split("?")[0]
         if path in ("/api/upload", "/api/analyze"):
             self._handle_api_upload()
             return
+        elif path == "/api/live/session/start":
+            self._handle_live_start()
+            return
+        elif path.startswith("/api/live/session/") and path.endswith("/frame"):
+            self._handle_live_frame()
+            return
+        elif path.startswith("/api/live/session/") and path.endswith("/stop"):
+            self._handle_live_stop()
+            return
         self._send_json({"error": f"Unknown POST endpoint: {path}"}, status=HTTPStatus.NOT_FOUND)
+
+    def _handle_live_start(self):
+        """启动新实时摄像头会话"""
+        try:
+            data = self.service.start_live_session()
+            self._send_json(data, status=HTTPStatus.CREATED)
+        except Exception as ex:
+            self._send_json({"error": f"Failed to start live session: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_live_frame(self):
+        """处理摄像头推流单帧并即时返回骨架与生物力学指标"""
+        try:
+            parts = self.path.split("?")[0].split("/")
+            # 预期格式: ["", "api", "live", "session", "<session_id>", "frame"]
+            if len(parts) < 6:
+                self._send_json({"error": "Invalid live frame path"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            session_id = parts[4]
+
+            content_length_str = self.headers.get("Content-Length")
+            if not content_length_str:
+                self._send_json({"error": "Missing Content-Length header"}, status=HTTPStatus.LENGTH_REQUIRED)
+                return
+
+            try:
+                content_length = int(content_length_str)
+            except ValueError:
+                self._send_json({"error": "Invalid Content-Length header"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            if content_length > 5 * 1024 * 1024:
+                self._send_json({"error": "Frame payload too large"}, status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+                return
+
+            frame_bytes = self.rfile.read(content_length)
+            client_ts_header = self.headers.get("X-Client-Timestamp")
+            client_ts_ms = int(client_ts_header) if (client_ts_header and client_ts_header.isdigit()) else None
+
+            res = self.service.process_live_frame(session_id, frame_bytes, client_ts_ms)
+            if res is None:
+                self._send_json({"error": f"Live session not found: {session_id}"}, status=HTTPStatus.NOT_FOUND)
+                return
+
+            self._send_json(res, status=HTTPStatus.OK)
+        except Exception as ex:
+            self._send_json({"error": f"Live frame inference failed: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_live_stop(self):
+        """关闭实时摄像头会话并获取总结"""
+        try:
+            parts = self.path.split("?")[0].split("/")
+            if len(parts) < 6:
+                self._send_json({"error": "Invalid live stop path"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            session_id = parts[4]
+
+            summary = self.service.stop_live_session(session_id)
+            if summary is None:
+                self._send_json({"error": f"Live session not found: {session_id}"}, status=HTTPStatus.NOT_FOUND)
+                return
+
+            self._send_json(summary, status=HTTPStatus.OK)
+        except Exception as ex:
+            self._send_json({"error": f"Failed to stop live session: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
 
     def _handle_api_upload(self):
         """处理视频上传并启动后台分析任务"""
@@ -176,6 +250,13 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
             elif path == "/api/uploads":
                 data = self.service.list_uploaded_cases()
                 self._send_json(data)
+            elif path.startswith("/api/live/session/"):
+                session_id = path.split("/api/live/session/")[1].strip("/")
+                data = self.service.get_live_session_status(session_id)
+                if data is None:
+                    self._send_json({"error": f"Live session not found: {session_id}"}, status=HTTPStatus.NOT_FOUND)
+                else:
+                    self._send_json(data)
             elif path.startswith("/api/media/"):
                 self._handle_media_get(path)
             else:

@@ -256,6 +256,356 @@ class SkeletonRenderer {
   }
 }
 
+/**
+ * 原生 Web Audio API 动作反馈音效合成器
+ * 遵循浏览器自动播放策略，在用户手势激活后合成悦耳深蹲达标音效
+ */
+class AudioManager {
+  constructor() {
+    this.audioCtx = null;
+    this.isEnabled = true;
+  }
+
+  ensureContext() {
+    if (!this.audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        this.audioCtx = new AudioContext();
+      }
+    }
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
+    }
+  }
+
+  playRepChime(success = true) {
+    if (!this.isEnabled) return;
+    try {
+      this.ensureContext();
+      if (!this.audioCtx) return;
+      const now = this.audioCtx.currentTime;
+      const osc = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(this.audioCtx.destination);
+
+      if (success) {
+        // D5 (587.33Hz) -> A5 (880.00Hz) 两个音符悦耳上扬
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.12);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      } else {
+        // 较低沉的轻微提示音
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(329.63, now);
+        osc.frequency.exponentialRampToValueAtTime(220.00, now + 0.15);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.32);
+      }
+    } catch (e) {
+      console.warn('播放音效失败:', e);
+    }
+  }
+}
+
+/**
+ * 实时硬件摄像头与虚拟推流控制器 (LiveCameraController)
+ * 职责：
+ * 1. 驱动 getUserMedia 摄像头流获取与设备选择；
+ * 2. 基于 In-Flight 令牌锁实行单窗口背压流控，丢帧不积压，25~30 FPS 低延迟；
+ * 3. 驱动骨骼绘制、动态双角悬浮气泡、HUD 计数与时序曲线；
+ * 4. 动作完成时触发 Web Audio 提示音与庆祝横幅；
+ * 5. 支持无物理摄像头时的虚拟演示流无缝兜底。
+ */
+class LiveCameraController {
+  constructor({
+    videoEl,
+    canvasEl,
+    overlayEl,
+    metricsEl,
+    celebrationEl,
+    celebrationTextEl,
+    skeletonRenderer,
+    chart,
+    audioManager,
+    onSessionFinished,
+    updateHud,
+  }) {
+    this.videoEl = videoEl;
+    this.canvasEl = canvasEl;
+    this.overlayEl = overlayEl;
+    this.metricsEl = metricsEl;
+    this.celebrationEl = celebrationEl;
+    this.celebrationTextEl = celebrationTextEl;
+    this.skeletonRenderer = skeletonRenderer;
+    this.chart = chart;
+    this.audioManager = audioManager;
+    this.onSessionFinished = onSessionFinished;
+    this.updateHud = updateHud;
+
+    this.mediaStream = null;
+    this.sessionId = null;
+    this.isRunning = false;
+    this.isVirtual = false;
+    this.inFlight = false;
+    this.rafId = null;
+
+    // 离屏捕获 Canvas (固定 640x480 分辨率，平衡精度与极速低延迟)
+    this.captureCanvas = document.createElement('canvas');
+    this.captureCanvas.width = 640;
+    this.captureCanvas.height = 480;
+    this.captureCtx = this.captureCanvas.getContext('2d', { willReadFrequently: true });
+
+    // 帧率与延迟统计
+    this.frameCount = 0;
+    this.lastFpsCalcTime = performance.now();
+    this.currentFps = 0;
+    this.currentRtt = 0;
+
+    // 动作完成横幅定时器
+    this.celebrationTimer = null;
+  }
+
+  async startCamera(deviceId = null) {
+    this.isVirtual = false;
+    this.audioManager.ensureContext();
+
+    const constraints = {
+      video: {
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        facingMode: 'user',
+      },
+      audio: false,
+    };
+    if (deviceId) {
+      constraints.video.deviceId = { exact: deviceId };
+    }
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('当前浏览器环境不支持 getUserMedia 摄像头接口 (可能需要 HTTPS 或 localhost 访问)');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      this.mediaStream = stream;
+      this.videoEl.srcObject = stream;
+      this.videoEl.controls = false;
+      await this.videoEl.play();
+
+      await this._initBackendSession();
+      this._startCaptureLoop();
+      this._showOverlay(true, 'LIVE 硬件摄像头实时推理');
+      return { success: true };
+    } catch (err) {
+      console.warn('获取物理摄像头失败:', err);
+      return {
+        success: false,
+        error: err.name || 'CameraError',
+        message: err.message || '无法访问物理摄像头',
+      };
+    }
+  }
+
+  async startVirtualCamera(videoUrl = '/api/media/replays/TC_01_PERFECT_SQUAT_annotated.mp4') {
+    this.isVirtual = true;
+    this.audioManager.ensureContext();
+
+    try {
+      if (this.mediaStream) {
+        this.mediaStream.getTracks().forEach(t => t.stop());
+        this.mediaStream = null;
+      }
+      this.videoEl.srcObject = null;
+      this.videoEl.src = videoUrl;
+      this.videoEl.loop = true;
+      this.videoEl.muted = true;
+      this.videoEl.controls = false;
+      await this.videoEl.play();
+
+      await this._initBackendSession();
+      this._startCaptureLoop();
+      this._showOverlay(true, 'LIVE 虚拟演示流实时推理');
+      return { success: true };
+    } catch (err) {
+      console.warn('启动虚拟演示流失败:', err);
+      return {
+        success: false,
+        error: 'VirtualCameraError',
+        message: err.message || '启动虚拟演示流失败',
+      };
+    }
+  }
+
+  async _initBackendSession() {
+    const res = await fetch('/api/live/session/start', { method: 'POST' });
+    if (!res.ok) {
+      throw new Error(`后端实时会话初始化失败 (HTTP ${res.status})`);
+    }
+    const data = await res.json();
+    this.sessionId = data.session_id;
+    this.isRunning = true;
+    this.inFlight = false;
+    this.frameCount = 0;
+    this.lastFpsCalcTime = performance.now();
+    this.chart.clear();
+    this.skeletonRenderer.resize();
+  }
+
+  _startCaptureLoop() {
+    const loop = async () => {
+      if (!this.isRunning) return;
+
+      const now = performance.now();
+      // FPS 采样计算
+      this.frameCount++;
+      if (now - this.lastFpsCalcTime >= 1000) {
+        this.currentFps = Math.round((this.frameCount * 1000) / (now - this.lastFpsCalcTime));
+        this.frameCount = 0;
+        this.lastFpsCalcTime = now;
+        this._updateMetricsDisplay();
+      }
+
+      // 核心背压流控机制 (In-Flight Guard / Sliding Window = 1)
+      // 若上一帧 HTTP 请求仍在进行中，跳过当前帧抓取，彻底杜绝请求积压与高延迟
+      if (!this.inFlight && this.videoEl.readyState >= 2 && this.videoEl.videoWidth > 0) {
+        this.inFlight = true;
+        const sendStart = performance.now();
+
+        try {
+          this.captureCtx.drawImage(this.videoEl, 0, 0, 640, 480);
+          this.captureCanvas.toBlob(async (blob) => {
+            if (!blob || !this.isRunning) {
+              this.inFlight = false;
+              return;
+            }
+
+            try {
+              const res = await fetch(`/api/live/session/${this.sessionId}/frame`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'image/jpeg',
+                  'X-Client-Timestamp': String(Date.now()),
+                },
+                body: blob,
+              });
+
+              if (res.ok) {
+                const point = await res.json();
+                this.currentRtt = Math.round(performance.now() - sendStart);
+                this._updateMetricsDisplay();
+
+                // 驱动渲染引擎与 HUD
+                if (this.updateHud) this.updateHud(point);
+                this.skeletonRenderer.render(point);
+                this.chart.appendPoint(point);
+
+                // 动作完成即时事件
+                if (point.rep_event) {
+                  this._handleRepCompleted(point.rep_event);
+                }
+              }
+            } catch (postErr) {
+              console.warn('单帧推流回包异常 (网络跳帧):', postErr);
+            } finally {
+              this.inFlight = false;
+            }
+          }, 'image/jpeg', 0.65);
+        } catch (captureErr) {
+          console.warn('Canvas 捕获异常:', captureErr);
+          this.inFlight = false;
+        }
+      }
+
+      this.rafId = requestAnimationFrame(loop);
+    };
+
+    this.rafId = requestAnimationFrame(loop);
+  }
+
+  _handleRepCompleted(event) {
+    const isPass = event.status === 'ACCEPTABLE';
+    this.audioManager.playRepChime(isPass);
+
+    if (this.celebrationEl && this.celebrationTextEl) {
+      if (this.celebrationTimer) clearTimeout(this.celebrationTimer);
+      const statusText = isPass ? '深度及格达标' : '动作待改进';
+      this.celebrationTextEl.textContent = `第 ${event.rep_id} 次完成！${statusText} (膝角: ${event.min_knee_angle}°, 耗时: ${event.duration_s}s)`;
+      this.celebrationEl.style.display = 'flex';
+      this.celebrationEl.style.background = isPass
+        ? 'linear-gradient(135deg, rgba(6, 78, 59, 0.95), rgba(4, 120, 87, 0.95))'
+        : 'linear-gradient(135deg, rgba(120, 53, 15, 0.95), rgba(180, 83, 9, 0.95))';
+      this.celebrationEl.style.borderColor = isPass ? '#10b981' : '#f59e0b';
+
+      this.celebrationTimer = setTimeout(() => {
+        this.celebrationEl.style.display = 'none';
+      }, 3500);
+    }
+  }
+
+  _updateMetricsDisplay() {
+    if (this.metricsEl) {
+      this.metricsEl.textContent = `FPS: ${this.currentFps} | RTT: ${this.currentRtt}ms`;
+    }
+  }
+
+  _showOverlay(show, text = null) {
+    if (this.overlayEl) {
+      this.overlayEl.style.display = show ? 'flex' : 'none';
+      if (text) {
+        const textEl = this.overlayEl.querySelector('.live-pill-text');
+        if (textEl) textEl.textContent = text;
+      }
+    }
+  }
+
+  async stop() {
+    if (!this.isRunning) return null;
+    this.isRunning = false;
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+
+    // 释放摄像头流
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach(t => t.stop());
+      this.mediaStream = null;
+    }
+    this.videoEl.pause();
+    this.videoEl.srcObject = null;
+    this.videoEl.controls = true;
+    this._showOverlay(false);
+    this.skeletonRenderer.clear();
+
+    if (this.celebrationEl) this.celebrationEl.style.display = 'none';
+
+    // 告知后端结束会话并获取归档
+    let summary = null;
+    if (this.sessionId) {
+      try {
+        const res = await fetch(`/api/live/session/${this.sessionId}/stop`, { method: 'POST' });
+        if (res.ok) {
+          summary = await res.json();
+          if (this.onSessionFinished) {
+            this.onSessionFinished(summary);
+          }
+        }
+      } catch (err) {
+        console.warn('结束实时会话失败:', err);
+      }
+      this.sessionId = null;
+    }
+
+    return summary;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // DOM 元素引用
   const caseListEl = document.getElementById('case-list');
@@ -304,8 +654,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnShowGolden = document.getElementById('btn-show-golden');
   const btnShowDataset = document.getElementById('btn-show-dataset');
   const btnShowUploads = document.getElementById('btn-show-uploads');
+  const btnShowCamera = document.getElementById('btn-show-camera');
   const uploadsCountEl = document.getElementById('uploads-count');
   const selectorTag = document.getElementById('selector-tag');
+
+  const liveCameraOverlay = document.getElementById('live-camera-overlay');
+  const liveMetricsText = document.getElementById('live-metrics-text');
+  const btnLiveStop = document.getElementById('btn-live-stop');
+  const repCelebrationBanner = document.getElementById('rep-celebration-banner');
+  const celebrationText = document.getElementById('celebration-text');
+  const toggleSound = document.getElementById('toggle-sound');
+  const uploadPanelSection = document.getElementById('upload-panel-section');
 
   const uploadBoxDefault = document.getElementById('upload-box-default');
   const uploadProgressContainer = document.getElementById('upload-progress-container');
@@ -319,12 +678,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const stepDone = document.getElementById('step-done');
 
   // 全局状态
-  let currentMode = 'GOLDEN'; // 'GOLDEN' | 'DATASET' | 'UPLOADS'
+  let currentMode = 'GOLDEN'; // 'GOLDEN' | 'DATASET' | 'UPLOADS' | 'CAMERA'
   let currentCaseId = 'TC_01_PERFECT_SQUAT';
   let telemetryData = [];
   let casesData = [];
   let datasetDemosData = [];
   let uploadedCasesData = [];
+
+  // 初始化音效管理器
+  const audioManager = new AudioManager();
+  if (toggleSound) {
+    toggleSound.addEventListener('change', (e) => {
+      audioManager.isEnabled = e.target.checked;
+    });
+  }
 
   // 初始化骨架渲染器与图表组件
   const skeletonRenderer = new SkeletonRenderer(skeletonCanvas, videoEl, videoContainer);
@@ -343,6 +710,55 @@ document.addEventListener('DOMContentLoaded', () => {
       syncPlaybackFrame();
     },
   });
+
+  // 实例化实时摄像头与虚拟推流控制器
+  const liveController = new LiveCameraController({
+    videoEl,
+    canvasEl: skeletonCanvas,
+    overlayEl: liveCameraOverlay,
+    metricsEl: liveMetricsText,
+    celebrationEl: repCelebrationBanner,
+    celebrationTextEl: celebrationText,
+    skeletonRenderer,
+    chart,
+    audioManager,
+    updateHud: (point) => {
+      if (hudCountEl) hudCountEl.textContent = point.count !== undefined ? point.count : 0;
+      if (hudCurKneeEl) {
+        hudCurKneeEl.textContent = `${point.knee_angle.toFixed(1)}°`;
+        hudCurKneeEl.style.color = point.knee_angle <= 105.0 ? '#10b981' : '#38bdf8';
+        hudCurKneeEl.style.textShadow = point.knee_angle <= 105.0
+          ? '0 0 8px rgba(16, 185, 129, 0.4)'
+          : '0 0 8px rgba(56, 189, 248, 0.4)';
+      }
+      if (hudCurTorsoEl) {
+        hudCurTorsoEl.textContent = `${point.torso_angle.toFixed(1)}°`;
+        hudCurTorsoEl.style.color = point.torso_angle > 45.0 ? '#ef4444' : '#fb923c';
+        hudCurTorsoEl.style.textShadow = point.torso_angle > 45.0
+          ? '0 0 8px rgba(239, 68, 68, 0.4)'
+          : '0 0 8px rgba(251, 146, 60, 0.4)';
+      }
+      if (hudFsmEl) hudFsmEl.textContent = point.fsm_state;
+      if (hudGateEl) {
+        if (!point.is_valid) {
+          hudGateEl.className = 'badge badge-gate rejected';
+          hudGateEl.textContent = point.gate_status || 'OUT_OF_FRAME';
+        } else {
+          hudGateEl.className = 'badge badge-gate';
+          hudGateEl.textContent = 'DRAWABLE';
+        }
+      }
+    },
+    onSessionFinished: (summary) => {
+      renderLiveSessionFinished(summary);
+    },
+  });
+
+  if (btnLiveStop) {
+    btnLiveStop.addEventListener('click', async () => {
+      await liveController.stop();
+    });
+  }
 
   // 1. 获取系统状态
   async function fetchStatus() {
@@ -1080,7 +1496,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setTabActive(activeBtn) {
-    [btnShowGolden, btnShowDataset, btnShowUploads].forEach((b) => {
+    [btnShowGolden, btnShowDataset, btnShowUploads, btnShowCamera].forEach((b) => {
       if (!b) return;
       if (b === activeBtn) {
         b.classList.add('active');
@@ -1092,6 +1508,201 @@ document.addEventListener('DOMContentLoaded', () => {
         b.style.color = '#94a3b8';
       }
     });
+  }
+
+  // 2.4 实时摄像头模式交互与面板渲染
+  async function loadCameraMode() {
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    skeletonRenderer.clear();
+    chart.clear();
+
+    currentCaseNameEl.textContent = '实时摄像头深蹲动作质量监测与计数';
+    currentCaseDescEl.textContent = '接入电脑前置或外置摄像头，单人侧面站立，实时绘制 33 点姿态骨架与关节角度悬浮气泡，自动跟踪 FSM 动作阶段与完成计数。';
+
+    hudCountEl.textContent = '0';
+    if (hudCurKneeEl) {
+      hudCurKneeEl.textContent = '--°';
+      hudCurKneeEl.style.color = '#38bdf8';
+    }
+    if (hudCurTorsoEl) {
+      hudCurTorsoEl.textContent = '--°';
+      hudCurTorsoEl.style.color = '#fb923c';
+    }
+    hudFsmEl.textContent = 'STANDING';
+    hudGateEl.className = 'badge badge-gate';
+    hudGateEl.textContent = 'DRAWABLE';
+
+    keyframesGrid.innerHTML = '<div class="empty-hint">实时摄像头训练中，完成深蹲将即时提示</div>';
+    evalStatusBadge.className = 'badge badge-eval acceptable';
+    evalStatusBadge.textContent = '就绪等待开启';
+    evalFeedbackText.textContent = '请调整站位确保全身入镜，然后点击左侧“开启实时摄像头”或“切换虚拟演示流”启动推理。';
+
+    caseListEl.innerHTML = `
+      <div class="camera-launcher-card">
+        <div class="camera-card-header">
+          <span class="camera-card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+            摄像头设备控制
+          </span>
+          <span class="badge badge-status online" id="camera-device-status">● 设备就绪</span>
+        </div>
+        <p class="camera-card-desc">支持电脑自带前置摄像头、USB 外接超广角摄像头及移动虚拟流设备。</p>
+        
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label style="font-size:0.75rem; color:#94a3b8;">选择视频采集输入设备：</label>
+          <select id="camera-device-select" class="camera-device-select">
+            <option value="">默认前置摄像头 (Default)</option>
+          </select>
+        </div>
+
+        <div class="camera-btn-group">
+          <button class="btn-camera-start" id="btn-start-camera-stream">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            开启实时摄像头
+          </button>
+          <button class="btn-camera-virtual" id="btn-start-virtual-stream" title="若电脑无物理摄像头或权限受限，一键开启离线素材推流">
+            🎬 切换虚拟演示流 (无摄像头兜底)
+          </button>
+        </div>
+
+        <div class="camera-tips-box">
+          <b>动作指导与机位建议：</b><br>
+          1. 身体侧面与镜头保持约 90° 夹角；<br>
+          2. 距离镜头约 1.8~2.5 米，保持头部至脚踝完整在画框内；<br>
+          3. 动作遵循 站立 -> 匀速下蹲 (膝角 ≤ 105°) -> 波谷停顿 -> 起身还原。
+        </div>
+
+        <div id="camera-error-hint" style="display:none; padding:8px 10px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:6px; color:#fca5a5; font-size:0.75rem; line-height:1.4;"></div>
+      </div>
+    `;
+
+    // 枚举媒体设备
+    const deviceSelect = document.getElementById('camera-device-select');
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        if (videoDevices.length > 0) {
+          deviceSelect.innerHTML = '';
+          videoDevices.forEach((d, idx) => {
+            const opt = document.createElement('option');
+            opt.value = d.deviceId;
+            opt.textContent = d.label || `摄像头 #${idx + 1}`;
+            deviceSelect.appendChild(opt);
+          });
+        }
+      } catch (devErr) {
+        console.warn('枚举摄像头设备失败:', devErr);
+      }
+    }
+
+    const startCameraBtn = document.getElementById('btn-start-camera-stream');
+    const startVirtualBtn = document.getElementById('btn-start-virtual-stream');
+    const errorHint = document.getElementById('camera-error-hint');
+    const deviceStatus = document.getElementById('camera-device-status');
+
+    if (startCameraBtn) {
+      startCameraBtn.addEventListener('click', async () => {
+        errorHint.style.display = 'none';
+        startCameraBtn.disabled = true;
+        startCameraBtn.innerHTML = '正在启动摄像头并连接推理引擎...';
+
+        const deviceId = deviceSelect ? deviceSelect.value : null;
+        const res = await liveController.startCamera(deviceId);
+        if (!res.success) {
+          startCameraBtn.disabled = false;
+          startCameraBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            开启实时摄像头
+          `;
+          errorHint.style.display = 'block';
+          errorHint.innerHTML = `
+            <b>⚠️ 摄像头接入受限</b> (${res.message})。<br>
+            您可能处于无物理摄像头或权限禁用环境。建议直接点击下方【切换虚拟演示流】进行免硬件零门槛体验！
+          `;
+          if (deviceStatus) {
+            deviceStatus.className = 'badge badge-status';
+            deviceStatus.textContent = '● 设备受限';
+            deviceStatus.style.background = 'rgba(239,68,68,0.2)';
+            deviceStatus.style.color = '#f87171';
+          }
+        } else {
+          startCameraBtn.disabled = true;
+          startCameraBtn.innerHTML = '● 摄像头实时推流中...';
+          startCameraBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          if (deviceStatus) {
+            deviceStatus.className = 'badge badge-status online';
+            deviceStatus.textContent = '● 推流中';
+          }
+        }
+      });
+    }
+
+    if (startVirtualBtn) {
+      startVirtualBtn.addEventListener('click', async () => {
+        errorHint.style.display = 'none';
+        const res = await liveController.startVirtualCamera();
+        if (res.success) {
+          if (startCameraBtn) {
+            startCameraBtn.disabled = true;
+            startCameraBtn.innerHTML = '● 虚拟演示流推流中...';
+            startCameraBtn.style.background = 'linear-gradient(135deg, #8b5cf6, #6366f1)';
+          }
+          if (deviceStatus) {
+            deviceStatus.className = 'badge badge-status online';
+            deviceStatus.textContent = '● 虚拟推流中';
+          }
+        }
+      });
+    }
+  }
+
+  function renderLiveSessionFinished(summary) {
+    evalStatusBadge.className = `badge badge-eval ${summary.actual_status === 'ACCEPTABLE' ? 'acceptable' : 'needs_improvement'}`;
+    evalStatusBadge.textContent = summary.actual_status === 'ACCEPTABLE' ? '达标 (ACCEPTABLE)' : '待改进 (NEEDS_IMPROVEMENT)';
+    evalFeedbackText.textContent = summary.summary_guidance || '训练已完成';
+
+    valExecTimeEl.textContent = `${summary.duration_s} s`;
+
+    fetchStatus();
+
+    caseListEl.innerHTML = `
+      <div class="camera-launcher-card" style="border-color: rgba(16, 185, 129, 0.4);">
+        <div class="camera-card-header">
+          <span class="camera-card-title" style="color: #10b981;">🎉 本次训练完成</span>
+          <span class="badge badge-eval ${summary.actual_status === 'ACCEPTABLE' ? 'acceptable' : 'needs_improvement'}">${summary.actual_status}</span>
+        </div>
+        <p class="camera-card-desc">
+          耗时 <b>${summary.duration_s}</b> 秒，共完成 <b>${summary.total_reps}</b> 次深蹲动作（达标 ${summary.metrics_summary ? summary.metrics_summary.acceptable_reps : 0} 次）。
+        </p>
+        <p class="camera-card-desc" style="color: #cbd5e1; font-size:0.75rem;">
+          ${summary.summary_guidance}
+        </p>
+        <div class="camera-btn-group">
+          <button class="btn-camera-start" id="btn-restart-camera">
+            🔄 继续新一轮训练
+          </button>
+          <button class="btn-camera-virtual" id="btn-view-saved-live">
+            📊 查看本次分析完整时序与回放
+          </button>
+        </div>
+      </div>
+    `;
+
+    const restartBtn = document.getElementById('btn-restart-camera');
+    if (restartBtn) restartBtn.addEventListener('click', () => loadCameraMode());
+
+    const viewSavedBtn = document.getElementById('btn-view-saved-live');
+    if (viewSavedBtn) {
+      viewSavedBtn.addEventListener('click', () => {
+        currentMode = 'UPLOADS';
+        setTabActive(btnShowUploads);
+        if (selectorTag) selectorTag.textContent = '在线自定义';
+        if (uploadPanelSection) uploadPanelSection.style.display = 'block';
+        loadUploads(summary.case_id);
+      });
+    }
   }
 
   // 8. 键盘便捷快捷键 (空格播放/暂停，左右箭头步进)
@@ -1119,28 +1730,45 @@ document.addEventListener('DOMContentLoaded', () => {
   // 9. 选项卡切换事件绑定
   if (btnShowGolden) {
     btnShowGolden.addEventListener('click', () => {
+      if (liveController.isRunning) liveController.stop();
       currentMode = 'GOLDEN';
       setTabActive(btnShowGolden);
       if (selectorTag) selectorTag.textContent = 'P4 基准';
+      if (uploadPanelSection) uploadPanelSection.style.display = 'block';
       loadCases();
     });
   }
 
   if (btnShowDataset) {
     btnShowDataset.addEventListener('click', () => {
+      if (liveController.isRunning) liveController.stop();
       currentMode = 'DATASET';
       setTabActive(btnShowDataset);
       if (selectorTag) selectorTag.textContent = 'MediaPipe 实测';
+      if (uploadPanelSection) uploadPanelSection.style.display = 'block';
       loadDatasetDemos();
     });
   }
 
   if (btnShowUploads) {
     btnShowUploads.addEventListener('click', () => {
+      if (liveController.isRunning) liveController.stop();
       currentMode = 'UPLOADS';
       setTabActive(btnShowUploads);
       if (selectorTag) selectorTag.textContent = '在线自定义';
+      if (uploadPanelSection) uploadPanelSection.style.display = 'block';
       loadUploads();
+    });
+  }
+
+  if (btnShowCamera) {
+    btnShowCamera.addEventListener('click', () => {
+      if (liveController.isRunning) liveController.stop();
+      currentMode = 'CAMERA';
+      setTabActive(btnShowCamera);
+      if (selectorTag) selectorTag.textContent = '实时摄像头';
+      if (uploadPanelSection) uploadPanelSection.style.display = 'none';
+      loadCameraMode();
     });
   }
 

@@ -52,6 +52,21 @@ class TelemetryChart {
     this.render();
   }
 
+  appendPoint(point) {
+    if (!point) return;
+    this.data.push(point);
+    this.duration = Math.max(this.duration, (point.time_s || 0) + 0.1);
+    this.currentTime = point.time_s || 0;
+    this.render();
+  }
+
+  clear() {
+    this.data = [];
+    this.duration = 1;
+    this.currentTime = 0;
+    this.render();
+  }
+
   initEvents() {
     let isDragging = false;
 

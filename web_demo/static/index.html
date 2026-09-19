@@ -40,9 +40,10 @@
             <span class="hint-tag" id="selector-tag">P4 基准</span>
           </div>
           <div class="source-switcher" style="display: flex; gap: 4px; background: rgba(255,255,255,0.06); padding: 3px; border-radius: 6px;">
-            <button class="switcher-btn active" id="btn-show-golden" style="flex: 1; padding: 6px 6px; border: none; background: #3b82f6; color: #fff; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;">P4 黄金用例</button>
-            <button class="switcher-btn" id="btn-show-dataset" style="flex: 1; padding: 6px 6px; border: none; background: transparent; color: #94a3b8; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;">开源数据集</button>
-            <button class="switcher-btn" id="btn-show-uploads" style="flex: 1; padding: 6px 6px; border: none; background: transparent; color: #94a3b8; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;">我的分析 (<span id="uploads-count">0</span>)</button>
+            <button class="switcher-btn active" id="btn-show-golden" style="flex: 1; padding: 6px 4px; border: none; background: #3b82f6; color: #fff; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;">P4 黄金用例</button>
+            <button class="switcher-btn" id="btn-show-dataset" style="flex: 1; padding: 6px 4px; border: none; background: transparent; color: #94a3b8; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;">开源数据集</button>
+            <button class="switcher-btn" id="btn-show-uploads" style="flex: 1; padding: 6px 4px; border: none; background: transparent; color: #94a3b8; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;">我的分析 (<span id="uploads-count">0</span>)</button>
+            <button class="switcher-btn" id="btn-show-camera" style="flex: 1; padding: 6px 4px; border: none; background: transparent; color: #94a3b8; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s;" title="接入硬件摄像头进行端到端实时姿态识别与计数">🎥 实时摄像头</button>
           </div>
         </div>
         <div class="case-list" id="case-list">
@@ -78,7 +79,7 @@
       </section>
 
       <!-- 本地视频上传演示 -->
-      <section class="panel upload-panel">
+      <section class="panel upload-panel" id="upload-panel-section">
         <div class="panel-header">
           <h2>自定义视频分析</h2>
           <span class="hint-tag" id="upload-status-tag">支持拖拽</span>
@@ -155,12 +156,35 @@
             您的浏览器不支持视频播放。
           </video>
           <canvas id="skeleton-canvas"></canvas>
+
+          <!-- 实时摄像头流运行状态与控制胶囊 -->
+          <div id="live-camera-overlay" class="live-camera-overlay" style="display: none;">
+            <div class="live-status-pill">
+              <span class="live-pulse-dot"></span>
+              <span class="live-pill-text">LIVE 硬件摄像头实时推理</span>
+              <span class="live-metrics" id="live-metrics-text">FPS: -- | RTT: --ms</span>
+            </div>
+            <div class="live-action-buttons">
+              <button class="btn btn-sm btn-danger" id="btn-live-stop" title="结束摄像头推流并查看报告">⏹ 结束训练并生成报告</button>
+            </div>
+          </div>
+
+          <!-- 动作达标即时庆祝横幅 -->
+          <div id="rep-celebration-banner" class="rep-celebration-banner" style="display: none;">
+            <span class="celebration-icon">🎉</span>
+            <span class="celebration-text" id="celebration-text">第 1 次深蹲达标！</span>
+          </div>
+
           <div class="video-overlay-info" id="video-overlay-info">
             <div class="overlay-left-group">
               <span id="overlay-time">00:00.000</span>
               <span id="overlay-frame">Frame: 0</span>
             </div>
             <div class="overlay-right-group">
+              <label class="sound-toggle" title="开关动作完成即时提示音">
+                <input type="checkbox" id="toggle-sound" checked>
+                <span class="toggle-label">🔔 音效提示</span>
+              </label>
               <label class="skeleton-toggle" title="开关画面骨骼关键点与实时角度标注">
                 <input type="checkbox" id="toggle-skeleton" checked>
                 <span class="toggle-label">实时骨架与角度</span>

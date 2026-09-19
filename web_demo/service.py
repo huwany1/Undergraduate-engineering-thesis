@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional
 from p4_validation.contracts import TestCaseId
 from p4_validation.golden_assets import GoldenAssetRegistry
 from .analyzer import OnlineAnalysisManager, AnalysisTaskStatus
+from .live_manager import LiveStreamManager
 
 
 class DemoService:
@@ -31,6 +32,7 @@ class DemoService:
         self.sidecars_dir = self.validation_dir / "sidecars"
         self.registry = GoldenAssetRegistry()
         self.analysis_manager = OnlineAnalysisManager(repo_root=self.repo_root)
+        self.live_manager = LiveStreamManager(repo_root=self.repo_root)
 
     def get_status(self) -> Dict[str, Any]:
         """获取系统状态与工程基线信息"""
@@ -82,8 +84,8 @@ class DemoService:
 
     def get_case_detail(self, case_id: str) -> Optional[Dict[str, Any]]:
         """获取单个用例的完整遥测时序、评估结果与截图资产"""
-        # 支持用户上传的自定义分析结果
-        if case_id.startswith("UPLOAD_") or case_id.startswith("up_"):
+        # 支持用户上传或实时摄像头分析结果
+        if case_id.startswith("UPLOAD_") or case_id.startswith("up_") or case_id.startswith("live_"):
             return self.get_uploaded_case_detail(case_id)
 
         try:
@@ -357,3 +359,43 @@ class DemoService:
             except Exception:
                 pass
         return None
+
+    # ---------------- 实时摄像头服务接口 (Live Webcam Stream) ----------------
+
+    def start_live_session(self) -> Dict[str, Any]:
+        """开启并初始化一个全新的摄像头实时流会话"""
+        session = self.live_manager.create_session()
+        return {
+            "session_id": session.session_id,
+            "status": "RUNNING",
+            "message": "实时摄像头推理引擎已就绪",
+        }
+
+    def process_live_frame(
+        self,
+        session_id: str,
+        image_bytes: bytes,
+        client_timestamp_ms: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """向指定会话推送单帧图像并获取实时骨骼与运动学评估结果"""
+        session = self.live_manager.get_session(session_id)
+        if not session:
+            return None
+        return session.process_frame(image_bytes, client_timestamp_ms)
+
+    def stop_live_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """结束摄像头实时会话并获取动作质量汇总"""
+        return self.live_manager.close_session(session_id)
+
+    def get_live_session_status(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """查询指定实时会话状态"""
+        session = self.live_manager.get_session(session_id)
+        if not session:
+            return None
+        return {
+            "session_id": session.session_id,
+            "is_active": session.is_active,
+            "frame_index": session.frame_index,
+            "total_reps": len(session.completed_reps_assessment),
+        }
+
