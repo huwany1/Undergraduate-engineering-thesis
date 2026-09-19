@@ -16,6 +16,7 @@ from p4_validation.contracts import TestCaseId
 from p4_validation.golden_assets import GoldenAssetRegistry
 from p2_temporal.contracts import RepetitionRecord
 from p2_temporal.analytics import MultiRepAnalyticsEngine
+from .contracts import UniversalFeedbackFormatter, AssessmentReportDto, validate_report_dict
 from .analyzer import OnlineAnalysisManager, AnalysisTaskStatus
 from .live_manager import LiveStreamManager
 
@@ -128,8 +129,12 @@ class DemoService:
         min_knee = ver_res.get("measured_min_knee_angle", 0.0)
         max_torso = ver_res.get("measured_max_torso_angle", 0.0)
 
-        # 证据化文案生成
-        summary_feedback = self._build_feedback_summary(cid, status, reason, min_knee, max_torso)
+        all_reasons = ver_res.get("actual_reason_codes", [reason])
+
+        # 证据化文案生成 (通用解耦)
+        summary_feedback = self._build_feedback_summary(
+            cid, status, reason, min_knee, max_torso, all_reasons=all_reasons
+        )
 
         # 构造维度三 Multi-Reps 宏观统计与单次切片
         reps = []
@@ -255,21 +260,25 @@ class DemoService:
         return points
 
     def _build_feedback_summary(
-        self, case_id: str, status: str, primary_reason: str, min_knee: float, max_torso: float
+        self,
+        case_id: str,
+        status: str,
+        primary_reason: str,
+        min_knee: float,
+        max_torso: float,
+        all_reasons: Optional[List[str]] = None,
     ) -> str:
-        """根据要点规则生成合规、非医疗化、证据确凿的动作辅助训练提示"""
-        if case_id == "TC_01_PERFECT_SQUAT":
-            return f"动作规范度良好。膝关节最小屈曲角达到 {min_knee:.1f}°（标准阈值 <= 105.0°），躯干最大前倾角保持在 {max_torso:.1f}°（安全阈值 <= 45.0°），动作平稳且完整。"
-        elif case_id == "TC_02_SHALLOW_SQUAT":
-            return f"动作要点待改进：下蹲深度不足。实测膝关节最小屈曲角为 {min_knee:.1f}°，未触达及格阈值 105.0°。建议训练时在保持核心收紧的前提下，适度加深髋部下沉幅度。"
-        elif case_id == "TC_03_EXCESSIVE_LEAN":
-            return f"动作要点待改进：躯干前倾幅度偏大。实测躯干最大前倾角为 {max_torso:.1f}°，超过基准线 45.0°。建议下蹲时挺胸沉肩，目视前方，保持脊柱中立位。"
-        elif case_id == "TC_04_DUAL_DEFECT":
-            return f"动作要点待改进（复合问题）：检测到下蹲深度不足（膝角 {min_knee:.1f}° > 105.0°）且躯干前倾过大（前倾角 {max_torso:.1f}° > 45.0°）。建议适当减小动作速度，优先维持躯干直立再逐步增加下蹲深度。"
-        elif case_id == "TC_05_OUT_OF_FRAME":
-            return "前置质检门控一票否决：检测到受试者移出有效画幅，关键运动特征点缺失。系统克制地拒绝输出动作次数与质量评价，请调整摄像机机位确保全身入镜。"
-        else:
-            return f"评估状态: {status}, 主原因码: {primary_reason}。"
+        """
+        根据要点规则生成合规、非医疗化、证据确凿的动作辅助训练提示
+        通过 UniversalFeedbackFormatter 动态渲染，彻底消除硬编码 case_id 耦合
+        """
+        return UniversalFeedbackFormatter.format(
+            status=status,
+            primary_reason=primary_reason,
+            min_knee=min_knee,
+            max_torso=max_torso,
+            all_reasons=all_reasons,
+        )
 
     def get_dataset_demos(self) -> List[Dict[str, Any]]:
         """获取真实数据集演示用例列表"""
@@ -324,6 +333,26 @@ class DemoService:
                 raw_path = kf.get("file_path", "")
                 fname = Path(raw_path).name if raw_path else ""
                 kf["image_url"] = f"/api/media/dataset_demo/screenshots/{fname}" if fname else None
+
+            # 规范化对齐 AssessmentReportDto 标准字段 (实现多源用例同构与低耦合)
+            if "case_id" not in data and "demo_id" in data:
+                data["case_id"] = data["demo_id"]
+            if "case_name" not in data and "title" in data:
+                data["case_name"] = data["title"]
+            if "actual_count" not in data and "total_reps_completed" in data:
+                data["actual_count"] = data["total_reps_completed"]
+            if "actual_status" not in data:
+                data["actual_status"] = "ACCEPTABLE" if data.get("total_reps_passed", 0) > 0 else "NEEDS_IMPROVEMENT"
+            if "actual_primary_reason" not in data:
+                data["actual_primary_reason"] = "NONE"
+            if "actual_reason_codes" not in data:
+                data["actual_reason_codes"] = [data["actual_primary_reason"]]
+            if "measured_min_knee_angle" not in data:
+                data["measured_min_knee_angle"] = data.get("min_knee_angle", 0.0)
+            if "measured_max_torso_angle" not in data:
+                data["measured_max_torso_angle"] = data.get("max_torso_angle", 0.0)
+            if "has_video" not in data:
+                data["has_video"] = bool(data.get("video_url"))
 
             # 构造综合提示文案
             if not data.get("summary_feedback"):
@@ -490,4 +519,9 @@ class DemoService:
             "frame_index": session.frame_index,
             "total_reps": len(session.completed_reps_assessment),
         }
+
+    def cleanup_idle_live_sessions(self, timeout_sec: Optional[float] = None) -> int:
+        """显式清理闲置超时的实时会话 (高可用运维)"""
+        return self.live_manager.cleanup_idle_sessions(timeout_sec=timeout_sec)
+
 

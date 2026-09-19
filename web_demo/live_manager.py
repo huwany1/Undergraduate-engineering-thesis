@@ -343,8 +343,29 @@ class LiveStreamManager:
             return summary
         return None
 
+    def cleanup_idle_sessions(self, timeout_sec: Optional[float] = None) -> int:
+        """
+        显式扫描并清理超时闲置会话 (高可用防护)
+        :param timeout_sec: 自定义闲置超时秒数，不填则使用默认值
+        :return: 成功清理回收的会话总数
+        """
+        with self.lock:
+            now = time.time()
+            limit = timeout_sec if timeout_sec is not None else self.SESSION_IDLE_TIMEOUT_S
+            stale_sids = [
+                sid
+                for sid, sess in self.sessions.items()
+                if (now - sess.last_active_at) > limit
+            ]
+            count = 0
+            for sid in stale_sids:
+                logger.info(f"Cleaning up stale live session {sid} (idle > {limit}s)")
+                if self._stop_and_remove(sid):
+                    count += 1
+            return count
+
     def _cleanup_stale_sessions(self) -> None:
-        """清理超时闲置会话"""
+        """内部清理超时闲置会话"""
         now = time.time()
         stale_sids = [
             sid

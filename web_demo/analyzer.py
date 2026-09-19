@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-在线视频分析调度器与任务生命周期管理器 (Online Video Analysis Engine)
-职责:
-1. 接收前端上传的 MP4 视频流并实施安全校验 (大小、格式);
-2. 异步调度 MediaPipe Tasks (P1) -> 1€ 滤波 & FSM (P2) -> 规则卡评估 (P3) 端到端推理;
-3. 毫秒级提取动作波谷与达标特征关键帧快照;
-4. 维护内存任务注册表 (TaskRegistry)，支持平滑百分比与阶段推进轮询;
-5. 针对 Web 快速响应实施自适应采样优化，确保 3~5 秒内产出专属时序报告与回放曲线。
+在线视频分析生命周期与调度管理器 (Online Video Analysis Manager)
+五大架构指标保障:
+1. 高内聚 (High Cohesion): 剥离具体的底层模型与时序循环，委托给独立 InferenceTaskWorker;
+2. 高可用 (High Availability): 管理并发任务队列配额，支持超时看门狗与任务主动取消;
+3. 线程安全 (Thread Safety): 严格互斥锁保护任务状态机与任务生命周期注册表.
 """
 
 import os
@@ -19,18 +17,11 @@ import logging
 import threading
 from enum import Enum
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, List, Optional, Tuple
 
-from p1_pipeline.engine.tasks_adapter import MediaPipeTasksPoseEngine
-from p1_pipeline.quality_gate import QualityGate
-from p1_pipeline.contracts import OverlayStatus
-from p2_temporal.runner import P2TemporalPipeline
-from p2_temporal.contracts import RepetitionRecord
-from p2_temporal.analytics import MultiRepAnalyticsEngine
-from p3_rules.engine import SquatAssessmentEngine
-from p3_rules.contracts import RuleCardConfig, AssessmentStatus
+from .worker import InferenceTaskWorker
 
 logger = logging.getLogger("web_demo.analyzer")
 
@@ -55,6 +46,7 @@ class AnalysisTask:
     video_rel_path: str = ""
     error: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
+    worker: Optional[InferenceTaskWorker] = None
 
 
 def parse_upload_payload(
@@ -87,7 +79,6 @@ def parse_upload_payload(
                 continue
             if b"\r\n\r\n" in p:
                 header_data, file_content = p.split(b"\r\n\r\n", 1)
-                # 剔除尾部回车换行符
                 if file_content.endswith(b"\r\n"):
                     file_content = file_content[:-2]
                 header_str = header_data.decode("utf-8", errors="replace")
@@ -104,12 +95,14 @@ def parse_upload_payload(
 
 
 class OnlineAnalysisManager:
-    """在线视频分析调度与任务生命周期管理器 (线程安全)"""
+    """在线视频分析调度与任务生命周期管理器 (线程安全 & 高可用)"""
 
     MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
     MAX_RETAINED_TASKS = 50                 # 任务注册表最大留存
+    MAX_CONCURRENT_WORKERS = 2              # 最大并发推理线程数
+    DEFAULT_TIMEOUT_SEC = 60.0             # 单个任务超时熔断上限
 
-    def __init__(self, repo_root: Optional[Path] = None):
+    def __init__(self, repo_root: Optional[Path] = None, timeout_sec: float = DEFAULT_TIMEOUT_SEC):
         self.repo_root = Path(repo_root) if repo_root else Path(__file__).resolve().parent.parent
         self.work_root = self.repo_root / "reports" / "uploaded_demo"
         self.upload_dir = self.work_root / "uploads"
@@ -117,6 +110,7 @@ class OnlineAnalysisManager:
         self.sidecar_dir = self.work_root / "sidecars"
         self.summary_dir = self.work_root / "summaries"
         self.model_path = self.repo_root / "models" / "pose_landmarker_full.task"
+        self.timeout_sec = timeout_sec
 
         # 创建目录结构
         for d in (self.upload_dir, self.screenshot_dir, self.sidecar_dir, self.summary_dir):
@@ -124,7 +118,10 @@ class OnlineAnalysisManager:
 
         self._tasks: Dict[str, AnalysisTask] = {}
         self._lock = threading.Lock()
-        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="OnlineAnalysisWorker")
+        self._executor = ThreadPoolExecutor(
+            max_workers=self.MAX_CONCURRENT_WORKERS,
+            thread_name_prefix="OnlineAnalysisWorker",
+        )
 
     def submit_video(
         self,
@@ -152,6 +149,19 @@ class OnlineAnalysisManager:
         with open(saved_video_path, "wb") as f:
             f.write(file_bytes)
 
+        # 实例化独立的 InferenceTaskWorker
+        worker = InferenceTaskWorker(
+            task_id=task_id,
+            video_path=saved_video_path,
+            original_filename=original_filename,
+            model_path=self.model_path,
+            screenshot_dir=self.screenshot_dir,
+            sidecar_dir=self.sidecar_dir,
+            summary_dir=self.summary_dir,
+            repo_root=self.repo_root,
+            timeout_sec=self.timeout_sec,
+        )
+
         task = AnalysisTask(
             task_id=task_id,
             status=AnalysisTaskStatus.PENDING,
@@ -160,6 +170,7 @@ class OnlineAnalysisManager:
             created_at=time.time(),
             video_filename=original_filename,
             video_rel_path=str(saved_video_path.relative_to(self.repo_root)).replace("\\", "/"),
+            worker=worker,
         )
 
         with self._lock:
@@ -169,9 +180,22 @@ class OnlineAnalysisManager:
                 del self._tasks[oldest_id]
             self._tasks[task_id] = task
 
-        # 提交后台工作线程
-        self._executor.submit(self._run_pipeline, task_id, saved_video_path, original_filename)
+        # 提交到后台线程池由 Worker 执行
+        self._executor.submit(self._dispatch_worker, task_id, worker)
         return task_id
+
+    def cancel_task(self, task_id: str) -> bool:
+        """取消正在运行或排队中的分析任务"""
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if not task:
+                return False
+            if task.worker:
+                task.worker.cancel()
+            task.status = AnalysisTaskStatus.FAILED
+            task.error = "任务已被用户取消"
+            task.stage_name = "任务已取消"
+            return True
 
     def get_task(self, task_id: str) -> Optional[AnalysisTask]:
         """获取指定任务当前状态"""
@@ -196,293 +220,30 @@ class OnlineAnalysisManager:
                         "video_url": t.result.get("video_url"),
                         "created_at": t.created_at,
                     })
-            # 按时间倒序
             completed.sort(key=lambda x: x["created_at"], reverse=True)
             return completed
 
-    def _run_pipeline(self, task_id: str, video_path: Path, original_filename: str) -> None:
-        """在后台线程执行端到端 P1 -> P2 -> P3 在线视频分析流水线"""
+    def _dispatch_worker(self, task_id: str, worker: InferenceTaskWorker) -> None:
+        """在工作线程中调度执行 InferenceTaskWorker"""
         task = self.get_task(task_id)
         if not task:
             return
 
-        start_time = time.perf_counter()
+        def on_progress(pct: int, msg: str):
+            task.status = AnalysisTaskStatus.PROCESSING
+            task.progress = pct
+            task.stage_name = msg
 
         try:
-            # Stage 1: 初始化与元数据探测 (10%)
             task.status = AnalysisTaskStatus.PROCESSING
-            task.progress = 10
-            task.stage_name = "读取视频元数据并探测动作特征..."
-
-            cap = cv2.VideoCapture(str(video_path))
-            if not cap.isOpened():
-                raise RuntimeError("OpenCV 无法解码该视频流，文件可能已损坏或编码不受支持")
-
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = float(cap.get(cv2.CAP_PROP_FPS))
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-            if fps <= 0 or fps != fps:
-                fps = 30.0
-            if total_frames <= 0:
-                total_frames = 150  # 容错估计
-
-            # 自适应步长控制 (确保 3~5s SLA)
-            # 深蹲动作频率通常为 0.3~0.5Hz，15~20 FPS 足以高保真还原波谷与角度极值
-            stride = 1
-            if fps > 25:
-                stride = 2
-            if total_frames > 300:
-                stride = max(stride, int(total_frames / 150))
-
-            # Stage 2: 预热姿态引擎与算法组件 (25%)
-            task.progress = 25
-            task.stage_name = "MediaPipe 逐帧骨骼关键点提取与滤波解算 (P1 & P2)..."
-
-            engine = MediaPipeTasksPoseEngine(
-                model_path=str(self.model_path),
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5,
-            )
-            engine.initialize()
-
-            quality_gate = QualityGate()
-            p2_pipeline = P2TemporalPipeline()
-
-            frame_idx = 0
-            sampled_count = 0
-            total_to_process = max(1, (total_frames + stride - 1) // stride)
-            telemetry: List[Dict[str, Any]] = []
-            keyframes: List[Dict[str, Any]] = []
-
-            # 记录波谷候选帧，确保无完整动作时亦有特征快照
-            min_knee_ever = 180.0
-            best_trough_frame = None
-            best_trough_idx = 0
-
-            # 逐帧循环处理
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                if frame_idx % stride != 0:
-                    frame_idx += 1
-                    continue
-
-                time_s = frame_idx / fps
-                timeline_us = int(time_s * 1e6)
-
-                # MediaPipe 需要 RGB 格式
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pose_res = engine.infer_frame(rgb, timeline_us)
-
-                # 质量门控判定
-                quality = quality_gate.evaluate(pose_res)
-                is_valid = (quality.overlay_status == OverlayStatus.DRAWABLE) and (len(pose_res.landmarks_2d) == 33)
-                side = quality.required_side.value if quality.required_side else "LEFT"
-
-                # P2 运动学与状态机
-                p2_res = p2_pipeline.process_frame(
-                    frame_index=frame_idx,
-                    timeline_us=timeline_us,
-                    landmarks_2d=pose_res.landmarks_2d,
-                    side=side,
-                    is_frame_valid=is_valid,
-                )
-
-                kine = p2_res.kinematics
-                fsm_val = p2_res.fsm_state.value if hasattr(p2_res.fsm_state, "value") else str(p2_res.fsm_state)
-                event_val = p2_res.event.value if hasattr(p2_res.event, "value") else str(p2_res.event)
-                landmarks_data = []
-                if pose_res.landmarks_2d:
-                    landmarks_data = [
-                        [round(p.x, 4), round(p.y, 4), round(p.visibility if p.visibility is not None else 1.0, 2)]
-                        for p in pose_res.landmarks_2d
-                    ]
-
-                telemetry.append({
-                    "frame_index": frame_idx,
-                    "time_s": round(time_s, 3),
-                    "knee_angle": round(kine.filtered_knee_angle, 1),
-                    "raw_knee_angle": round(kine.raw_knee_angle, 1),
-                    "torso_angle": round(kine.filtered_torso_angle, 1),
-                    "raw_torso_angle": round(kine.raw_torso_angle, 1),
-                    "fsm_state": fsm_val,
-                    "event": event_val,
-                    "is_valid": kine.is_valid,
-                    "count": p2_res.cumulative_rep_count,
-                    "landmarks": landmarks_data,
-                })
-
-                # 记录全局最低膝角候选
-                if kine.is_valid and kine.filtered_knee_angle < min_knee_ever:
-                    min_knee_ever = kine.filtered_knee_angle
-                    best_trough_frame = frame.copy()
-                    best_trough_idx = frame_idx
-
-                # 捕获关键特征帧
-                if event_val in ("INFLECTION_REACHED", "REP_COMPLETED"):
-                    kf_filename = f"{task_id}_kf_{frame_idx}_{event_val}.png"
-                    kf_path = self.screenshot_dir / kf_filename
-                    cv2.imwrite(str(kf_path), frame)
-                    desc = (
-                        f"动作波谷极值 (膝角: {kine.filtered_knee_angle:.1f}°, 前倾: {kine.filtered_torso_angle:.1f}°)"
-                        if event_val == "INFLECTION_REACHED"
-                        else f"完成深蹲 #{p2_res.cumulative_rep_count}"
-                    )
-                    keyframes.append({
-                        "event_type": event_val,
-                        "frame_index": frame_idx,
-                        "timeline_us": timeline_us,
-                        "description": desc,
-                        "image_url": f"/api/media/uploaded/screenshot/{kf_filename}",
-                    })
-
-                sampled_count += 1
-                frame_idx += 1
-
-                # 进度动态递增 (25% ~ 75%)
-                if sampled_count % 8 == 0:
-                    pct = 25 + int(50 * (sampled_count / total_to_process))
-                    task.progress = min(75, pct)
-
-            cap.release()
-
-            # 兜底：若动作未触发标准事件但存在有效画面，捕获极值帧
-            if not keyframes and best_trough_frame is not None:
-                kf_filename = f"{task_id}_kf_{best_trough_idx}_trough.png"
-                kf_path = self.screenshot_dir / kf_filename
-                cv2.imwrite(str(kf_path), best_trough_frame)
-                keyframes.append({
-                    "event_type": "MIN_KNEE_TROUGH",
-                    "frame_index": best_trough_idx,
-                    "timeline_us": int((best_trough_idx / fps) * 1e6),
-                    "description": f"实测下蹲最低点 (膝角: {min_knee_ever:.1f}°)",
-                    "image_url": f"/api/media/uploaded/screenshot/{kf_filename}",
-                })
-
-            # Stage 3: P3 规则卡质检与反馈评估 (80%)
-            task.progress = 80
-            task.stage_name = "执行 P3 规则卡质检与非医疗指导生成..."
-
-            completed_reps = [r for r in p2_pipeline.counter.records if r.status == "COMPLETED" or r.is_valid]
-            assessment_engine = SquatAssessmentEngine(config=RuleCardConfig())
-            assessments = assessment_engine.evaluate_all(completed_reps)
-
-            total_reps = len(completed_reps)
-            passed_reps = sum(1 for a in assessments if a.overall_status == AssessmentStatus.ACCEPTABLE)
-
-            valid_telemetry = [t for t in telemetry if t["is_valid"]]
-            min_knee = min([t["knee_angle"] for t in valid_telemetry], default=min_knee_ever)
-            max_torso = max([t["torso_angle"] for t in valid_telemetry], default=0.0)
-
-            # 判定综合动作状态与生成建议文案
-            if total_reps > 0:
-                if passed_reps == total_reps:
-                    overall_status = "ACCEPTABLE"
-                    primary_reason = "NONE"
-                    summary_feedback = (
-                        f"动作规范度良好！成功识别并完成 {total_reps} 次达标深蹲。"
-                        f"实测膝关节最小屈曲角达到 {min_knee:.1f}°（及格标准 ≤ 105.0°），"
-                        f"躯干最大前倾角保持在 {max_torso:.1f}°（安全基准 ≤ 45.0°），动作节奏控制平稳。"
-                    )
-                else:
-                    overall_status = "NEEDS_IMPROVEMENT"
-                    first_defect = next((a for a in assessments if a.overall_status != AssessmentStatus.ACCEPTABLE), assessments[0])
-                    primary_reason = first_defect.primary_reason_code.value if hasattr(first_defect.primary_reason_code, "value") else str(first_defect.primary_reason_code)
-                    summary_feedback = (
-                        f"动作要点待改进：共尝试 {total_reps} 次深蹲，其中 {passed_reps} 次达标。"
-                        f"实测波谷膝角 {min_knee:.1f}°，最大前倾角 {max_torso:.1f}°。"
-                        f"指导建议：{first_defect.summary_feedback}"
-                    )
-            else:
-                # 未完成完整闭环动作
-                valid_ratio = len(valid_telemetry) / max(1, len(telemetry))
-                if valid_ratio < 0.4:
-                    overall_status = "REJECTED"
-                    primary_reason = "OUT_OF_FRAME"
-                    summary_feedback = "前置质检门控一票否决：检测到受试者移出画幅或关键特征点严重遮挡，系统克制地拒绝输出动作次数，请调整机位确保全身入镜。"
-                else:
-                    overall_status = "NEEDS_IMPROVEMENT"
-                    primary_reason = "INCOMPLETE_CYCLE"
-                    summary_feedback = (
-                        f"未检测到完整闭环的深蹲动作（实测最小膝角 {min_knee:.1f}°）。"
-                        "请在训练时保持核心稳定，下蹲至大腿接近水平再平稳站起恢复直立。"
-                    )
-
-            # Stage 4: 结果持久化与组装 (95%)
-            task.progress = 95
-            task.stage_name = "持久化遥测 Sidecar 并渲染报告..."
-
-            # 导出 Sidecar
-            sidecar_path = self.sidecar_dir / f"{task_id}_frames.jsonl"
-            with open(sidecar_path, "w", encoding="utf-8") as sf:
-                for row in telemetry:
-                    sf.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-            total_elapsed_ms = (time.perf_counter() - start_time) * 1000
-
-            all_reasons = []
-            for a in assessments:
-                for v in a.violations:
-                    if v.reason_code not in all_reasons:
-                        all_reasons.append(v.reason_code)
-            if not all_reasons and primary_reason != "NONE":
-                all_reasons.append(primary_reason)
-
-            ext_bio_summary = {
-                "min_valgus_ratio": min([r.extended_metrics.get("min_valgus_ratio") for r in completed_reps if r.extended_metrics and r.extended_metrics.get("min_valgus_ratio") is not None], default=None),
-                "max_heel_lift_deg": max([r.extended_metrics.get("max_heel_lift_deg", 0.0) for r in completed_reps if r.extended_metrics], default=0.0),
-                "max_pelvic_tilt_deg": max([r.extended_metrics.get("max_pelvic_tilt_deg", 0.0) for r in completed_reps if r.extended_metrics], default=0.0),
-                "max_bilateral_diff_deg": max([r.extended_metrics.get("max_bilateral_diff_deg") for r in completed_reps if r.extended_metrics and r.extended_metrics.get("max_bilateral_diff_deg") is not None], default=None),
-            }
-
-            # 计算维度三 Multi-Reps 宏观统计与单次切片
-            multi_rep_summary = MultiRepAnalyticsEngine.analyze(completed_reps, assessments).to_dict()
-
-            # 组装与现有 Web 看板完全同构的报告结果
-            report_result = {
-                "case_id": f"UPLOAD_{task_id}",
-                "task_id": task_id,
-                "case_name": f"自定义分析: {Path(original_filename).name}",
-                "description": f"在线分析视频 (原帧率 {fps:.1f} FPS, 共解算 {len(telemetry)} 帧, 耗时 {total_elapsed_ms / 1000:.2f}s)",
-                "expected_count": None,
-                "expected_status": None,
-                "expected_primary_reason": None,
-                "actual_count": total_reps,
-                "actual_status": overall_status,
-                "actual_primary_reason": primary_reason,
-                "actual_reason_codes": all_reasons if all_reasons else [primary_reason],
-                "measured_min_knee_angle": round(min_knee, 1),
-                "measured_max_torso_angle": round(max_torso, 1),
-                "extended_biomechanics": ext_bio_summary,
-                "execution_time_ms": round(total_elapsed_ms, 1),
-                "summary_feedback": summary_feedback,
-                "has_video": True,
-                "video_url": f"/api/media/uploaded/video/{video_path.name}",
-                "telemetry": telemetry,
-                "keyframes": keyframes,
-                "assessments": [a.to_dict() for a in assessments],
-                "repetitions": [r.to_dict() for r in completed_reps],
-                "multi_rep_summary": multi_rep_summary,
-            }
-
-            # 写出总结 JSON
-            summary_path = self.summary_dir / f"{task_id}_summary.json"
-            with open(summary_path, "w", encoding="utf-8") as sum_f:
-                json.dump(report_result, sum_f, indent=2, ensure_ascii=False)
-
-            # Stage 5: 最终完成 (100%)
+            report_result = worker.execute(progress_callback=on_progress)
             task.result = report_result
             task.progress = 100
             task.status = AnalysisTaskStatus.COMPLETED
             task.stage_name = "分析完成！专属报告与回放曲线已就绪。"
-            logger.info(f"Task {task_id} completed successfully in {total_elapsed_ms:.1f}ms")
-
+            logger.info(f"Task {task_id} successfully processed by worker")
         except Exception as e:
-            logger.exception(f"Task {task_id} failed with error: {e}")
+            logger.exception(f"Task {task_id} execution failed: {e}")
             task.status = AnalysisTaskStatus.FAILED
             task.error = str(e)
             task.stage_name = f"处理失败: {str(e)}"
