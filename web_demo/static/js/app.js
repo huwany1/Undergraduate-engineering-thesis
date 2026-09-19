@@ -473,9 +473,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentCaseDescEl.textContent = detail.description;
 
     // 更新右侧评估卡片
-    valMinKneeEl.textContent = `${detail.measured_min_knee_angle.toFixed(1)}°`;
-    valMaxTorsoEl.textContent = `${detail.measured_max_torso_angle.toFixed(1)}°`;
-    valExecTimeEl.textContent = `${detail.execution_time_ms.toFixed(1)} ms`;
+    valMinKneeEl.textContent = `${Number(detail.measured_min_knee_angle ?? 0).toFixed(1)}°`;
+    valMaxTorsoEl.textContent = `${Number(detail.measured_max_torso_angle ?? 0).toFixed(1)}°`;
+    valExecTimeEl.textContent = `${Number(detail.execution_time_ms ?? 0).toFixed(1)} ms`;
 
     let badgeClass = 'acceptable';
     let statusText = '动作规范 (ACCEPTABLE)';

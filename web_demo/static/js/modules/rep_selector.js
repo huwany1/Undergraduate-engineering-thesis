@@ -55,7 +55,37 @@
       this.currentDetail = detail;
       this.exitDrillDown();
 
-      const reps = detail.repetitions || [];
+      const rawReps = (detail.multi_rep_summary && detail.multi_rep_summary.slices && detail.multi_rep_summary.slices.length > 0)
+        ? detail.multi_rep_summary.slices
+        : (detail.repetitions || []);
+
+      const reps = rawReps.map((r, idx) => {
+        const repIndex = r.rep_index ?? r.rep_id ?? (idx + 1);
+        const isAcceptable = r.is_acceptable !== undefined
+          ? Boolean(r.is_acceptable)
+          : (r.overall_status ? r.overall_status === 'ACCEPTABLE' : (r.is_valid && !((r.reason_codes || []).some(code => code !== 'ACCEPTABLE' && code !== 'COMPLETE_REP'))));
+        const minKnee = Number(r.min_knee_angle ?? 0);
+        const maxTorso = Number(r.max_torso_angle ?? r.max_torso_lean_angle ?? 0);
+        const durationS = Number(r.duration_s !== undefined ? r.duration_s : ((r.duration_ms || 0) / 1000));
+        const startTime = Number(r.start_time_s !== undefined ? r.start_time_s : ((r.start_timeline_us || 0) / 1e6));
+        const bottomTime = Number(r.bottom_time_s !== undefined ? r.bottom_time_s : ((r.bottom_timeline_us || 0) / 1e6));
+        const endTime = Number(r.end_time_s !== undefined ? r.end_time_s : ((r.end_timeline_us || 0) / 1e6));
+        const issues = r.issues || r.violations || (r.reason_codes || []).filter(c => c !== 'ACCEPTABLE' && c !== 'COMPLETE_REP');
+
+        return {
+          ...r,
+          rep_index: repIndex,
+          is_acceptable: isAcceptable,
+          min_knee_angle: minKnee,
+          max_torso_angle: maxTorso,
+          duration_s: durationS,
+          start_time_s: startTime,
+          bottom_time_s: bottomTime,
+          end_time_s: endTime,
+          issues: issues
+        };
+      });
+
       const summary = detail.multi_rep_summary || null;
       const { repsCarouselEl } = this.elements;
 
@@ -148,23 +178,32 @@
       } = this.elements;
 
       if (macroPassRateBadge) {
-        const pct = Math.round((summary.pass_rate || 0) * 100);
-        macroPassRateBadge.textContent = `合格率: ${pct}% (${summary.acceptable_reps}/${summary.total_reps})`;
+        const total = summary.total_reps ?? summary.total_completed_reps ?? reps.length ?? 0;
+        const acceptable = summary.acceptable_reps ?? summary.passed_reps ?? reps.filter(r => r.is_acceptable).length ?? 0;
+        const pct = summary.pass_rate_pct !== undefined
+          ? Math.round(summary.pass_rate_pct)
+          : (summary.pass_rate !== undefined ? Math.round(summary.pass_rate * 100) : (total > 0 ? Math.round((acceptable / total) * 100) : 0));
+        macroPassRateBadge.textContent = `合格率: ${pct}% (${acceptable}/${total})`;
         macroPassRateBadge.className = `badge badge-eval ${pct >= 80 ? 'acceptable' : pct >= 50 ? 'needs_improvement' : 'not_evaluated'}`;
       }
 
       // 卡片 1: 动作一致性得分
       const c = summary.consistency;
       if (c && consistencyScoreNum) {
-        consistencyScoreNum.textContent = c.consistency_score.toFixed(0);
+        const score = Number(c.consistency_score ?? c.score ?? 100);
+        consistencyScoreNum.textContent = score.toFixed(0);
         if (consistencyGradeBadge) {
-          consistencyGradeBadge.textContent = c.grade;
-          consistencyGradeBadge.className = `badge badge-eval ${c.consistency_score >= 85 ? 'acceptable' : c.consistency_score >= 70 ? 'needs_improvement' : 'not_evaluated'}`;
+          consistencyGradeBadge.textContent = c.grade || 'SINGLE_REP';
+          consistencyGradeBadge.className = `badge badge-eval ${score >= 85 ? 'acceptable' : score >= 70 ? 'needs_improvement' : 'not_evaluated'}`;
         }
-        if (consistencyKneeStd) consistencyKneeStd.textContent = `${c.knee_angle_std.toFixed(1)}°`;
-        if (consistencyTorsoStd) consistencyTorsoStd.textContent = `${c.torso_angle_std.toFixed(1)}°`;
-        if (consistencyDurCv) consistencyDurCv.textContent = `${(c.duration_cv * 100).toFixed(1)}%`;
-        if (consistencyDesc) consistencyDesc.textContent = c.description;
+        const kneeStd = Number(c.knee_angle_std ?? c.knee_std ?? 0);
+        const torsoStd = Number(c.torso_angle_std ?? c.torso_std ?? 0);
+        const durCv = Number(c.duration_cv ?? 0) * 100;
+
+        if (consistencyKneeStd) consistencyKneeStd.textContent = `${kneeStd.toFixed(1)}°`;
+        if (consistencyTorsoStd) consistencyTorsoStd.textContent = `${torsoStd.toFixed(1)}°`;
+        if (consistencyDurCv) consistencyDurCv.textContent = `${durCv.toFixed(1)}%`;
+        if (consistencyDesc) consistencyDesc.textContent = c.description || '';
       }
 
       // 卡片 2: 下蹲深度衰减趋势 (疲劳分析)
@@ -186,32 +225,35 @@
         fatigueStatusBadge.textContent = stLabel;
         fatigueStatusBadge.className = `badge badge-eval ${stClass}`;
 
+        const slope = Number(d.slope ?? d.slope_deg_per_rep ?? 0);
+        const totalDelta = Number(d.total_delta_deg ?? 0);
+
         if (fatigueSlopeVal) {
-          fatigueSlopeVal.textContent = `${d.slope >= 0 ? '+' : ''}${d.slope.toFixed(2)}°/次`;
+          fatigueSlopeVal.textContent = `${slope >= 0 ? '+' : ''}${slope.toFixed(2)}°/次`;
           fatigueSlopeVal.style.color = d.status === 'FATIGUE_DETECTED' ? '#ef4444' : '#10b981';
         }
         if (fatigueDeltaVal) {
-          fatigueDeltaVal.textContent = `${d.total_delta_deg >= 0 ? '+' : ''}${d.total_delta_deg.toFixed(1)}°`;
+          fatigueDeltaVal.textContent = `${totalDelta >= 0 ? '+' : ''}${totalDelta.toFixed(1)}°`;
           fatigueDeltaVal.style.color = d.status === 'FATIGUE_DETECTED' ? '#ef4444' : '#10b981';
         }
-        if (fatigueDesc) fatigueDesc.textContent = d.description;
+        if (fatigueDesc) fatigueDesc.textContent = d.description || '';
 
         // 渲染疲劳迷你柱状图 Sparklines
         if (fatigueSparklineBox) {
           fatigueSparklineBox.innerHTML = '';
           if (reps.length > 0) {
-            const angles = reps.map((r) => r.min_knee_angle);
+            const angles = reps.map((r) => Number(r.min_knee_angle || 0));
             const minA = Math.min(...angles);
             const maxA = Math.max(...angles);
-            const span = Math.max(10, maxA - minA);
+            const rangeA = Math.max(5.0, maxA - minA);
 
             reps.forEach((r) => {
               const col = document.createElement('div');
               col.className = 'fatigue-bar-col';
-              col.title = `第 ${r.rep_index} 次: 膝角 ${r.min_knee_angle.toFixed(1)}° (${r.is_acceptable ? '合格' : '待改进'})`;
+              const kneeVal = Number(r.min_knee_angle || 0);
+              const heightPct = Math.min(100, Math.max(20, ((kneeVal - minA) / rangeA) * 80 + 20));
+              col.title = `第 ${r.rep_index} 次: 膝角 ${kneeVal.toFixed(1)}° (${r.is_acceptable ? '合格' : '待改进'})`;
 
-              const ratio = 1 - (r.min_knee_angle - minA) / (span || 1);
-              const heightPct = Math.max(25, Math.round(35 + ratio * 60));
               const barColor = r.is_acceptable ? '#10b981' : '#f43f5e';
 
               col.innerHTML = `
@@ -229,10 +271,10 @@
       // 卡片 3: 动作节奏剖析
       const t = summary.tempo;
       if (t) {
-        if (tempoRatioBadge) tempoRatioBadge.textContent = t.tempo_ratio || '2-1-1';
-        const ecc = t.mean_eccentric_s || 1.5;
-        const iso = t.mean_isometric_s || 0.5;
-        const con = t.mean_concentric_s || 1.5;
+        if (tempoRatioBadge) tempoRatioBadge.textContent = t.tempo_ratio || t.tempo_ratio_str || '2-1-1';
+        const ecc = Number(t.mean_eccentric_s ?? t.avg_descending_s ?? 1.5);
+        const iso = Number(t.mean_isometric_s ?? t.avg_pause_s ?? 0.5);
+        const con = Number(t.mean_concentric_s ?? t.avg_ascending_s ?? 1.5);
         const total = Math.max(0.1, ecc + iso + con);
 
         const eccPct = Math.max(15, (ecc / total) * 100);
@@ -255,7 +297,7 @@
         if (tempoEccText) tempoEccText.textContent = `${ecc.toFixed(1)}s`;
         if (tempoIsoText) tempoIsoText.textContent = `${iso.toFixed(1)}s`;
         if (tempoConText) tempoConText.textContent = `${con.toFixed(1)}s`;
-        if (tempoDesc) tempoDesc.textContent = t.description;
+        if (tempoDesc) tempoDesc.textContent = t.description || t.pacing_feedback || '';
       }
     }
 
