@@ -235,3 +235,13 @@ def test_security_path_traversal_blocked(web_server):
     with pytest.raises(urllib.error.HTTPError) as exc_info:
         urllib.request.urlopen(bad_url)
     assert exc_info.value.code in (403, 404)
+
+
+def test_api_uploads_endpoint(web_server):
+    """验证 /api/uploads 接口返回列表类型"""
+    url = f"{web_server}/api/uploads"
+    req = urllib.request.Request(url)
+    with urllib.request.urlopen(req) as resp:
+        assert resp.status == 200
+        data = json.loads(resp.read().decode("utf-8"))
+        assert isinstance(data, list)

@@ -50,14 +50,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnShowGolden = document.getElementById('btn-show-golden');
   const btnShowDataset = document.getElementById('btn-show-dataset');
+  const btnShowUploads = document.getElementById('btn-show-uploads');
+  const uploadsCountEl = document.getElementById('uploads-count');
   const selectorTag = document.getElementById('selector-tag');
 
+  const uploadBoxDefault = document.getElementById('upload-box-default');
+  const uploadProgressContainer = document.getElementById('upload-progress-container');
+  const uploadProgressFill = document.getElementById('upload-progress-fill');
+  const uploadPctNum = document.getElementById('upload-pct-num');
+  const uploadStageBadge = document.getElementById('upload-stage-badge');
+  const uploadStageDesc = document.getElementById('upload-stage-desc');
+  const stepP1 = document.getElementById('step-p1');
+  const stepP2 = document.getElementById('step-p2');
+  const stepP3 = document.getElementById('step-p3');
+  const stepDone = document.getElementById('step-done');
+
   // 全局状态
-  let currentMode = 'GOLDEN'; // 'GOLDEN' | 'DATASET'
+  let currentMode = 'GOLDEN'; // 'GOLDEN' | 'DATASET' | 'UPLOADS'
   let currentCaseId = 'TC_01_PERFECT_SQUAT';
   let telemetryData = [];
   let casesData = [];
   let datasetDemosData = [];
+  let uploadedCasesData = [];
 
   // 初始化图表组件
   const chart = new window.TelemetryChart(chartCanvas, {
@@ -77,6 +91,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (data.git_commit) {
         gitBadge.textContent = `Git: ${data.git_commit.substring(0, 7)}`;
+      }
+
+      // 获取用户上传分析总数
+      const upRes = await fetch('/api/uploads');
+      if (upRes.ok) {
+        const uploads = await upRes.json();
+        if (uploadsCountEl) uploadsCountEl.textContent = uploads.length;
       }
     } catch (e) {
       console.warn('获取系统状态失败:', e);
@@ -442,20 +463,275 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('summary-md-content').textContent = reportData.summary_markdown || '无摘要报告';
   }
 
-  // 6. 自定义本地视频上传交互
-  uploadBox.addEventListener('click', () => {
+  // 6. 自定义本地视频上传交互与在线分析管道
+  let isAnalyzing = false;
+
+  uploadBox.addEventListener('click', (e) => {
+    if (isAnalyzing) return;
     videoFileInput.click();
+  });
+
+  // 拖拽高亮与文件捕获
+  ['dragenter', 'dragover'].forEach((eventName) => {
+    uploadBox.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isAnalyzing) {
+        uploadBox.classList.add('drag-over');
+      }
+    });
+  });
+
+  ['dragleave', 'dragend'].forEach((eventName) => {
+    uploadBox.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadBox.classList.remove('drag-over');
+    });
+  });
+
+  uploadBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadBox.classList.remove('drag-over');
+    if (isAnalyzing) return;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (!file.name.toLowerCase().endsWith('.mp4')) {
+        alert('仅支持上传 MP4 格式视频文件');
+        return;
+      }
+      uploadAndAnalyzeVideo(file);
+    }
   });
 
   videoFileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
-      // 演示模式提示
-      alert(`已选择本地视频: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)\n\n系统已就绪，当前可通过选择 5 大受控黄金场景进行确定性答辩演示；自定义离线视频可作为扩展样本直接载入。`);
+      uploadAndAnalyzeVideo(file);
     }
+    videoFileInput.value = '';
   });
 
-  // 7. 键盘便捷快捷键 (空格播放/暂停，左右箭头步进)
+  async function uploadAndAnalyzeVideo(file) {
+    if (isAnalyzing) return;
+    if (file.size > 50 * 1024 * 1024) {
+      alert(`文件大小 ${(file.size / 1024 / 1024).toFixed(1)}MB 超出 50MB 上限`);
+      return;
+    }
+
+    isAnalyzing = true;
+    uploadBox.classList.add('analyzing');
+    if (uploadBoxDefault) uploadBoxDefault.style.display = 'none';
+    if (uploadProgressContainer) uploadProgressContainer.style.display = 'flex';
+
+    updateUploadProgress(5, '正在上传视频至服务端...', '上传中', 'p1');
+
+    try {
+      const formData = new FormData();
+      formData.append('video', file, file.name);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(errJson.error || '视频提交失败');
+      }
+
+      const uploadData = await res.json();
+      const taskId = uploadData.task_id;
+      updateUploadProgress(15, '视频已就绪，正在预热算法引擎...', 'P1 姿态', 'p1');
+
+      // 启动轮询跟踪
+      pollAnalysisTask(taskId, file.name);
+    } catch (e) {
+      console.error('上传视频失败:', e);
+      updateUploadProgress(0, `上传失败: ${e.message}`, '异常', 'error');
+      setTimeout(() => {
+        resetUploadBox();
+      }, 3000);
+    }
+  }
+
+  function updateUploadProgress(percent, stageDesc, stageBadge, activeStep) {
+    if (uploadProgressFill) uploadProgressFill.style.width = `${percent}%`;
+    if (uploadPctNum) uploadPctNum.textContent = `${percent}%`;
+    if (uploadStageDesc) uploadStageDesc.textContent = stageDesc;
+    if (uploadStageBadge && stageBadge) uploadStageBadge.textContent = stageBadge;
+
+    const steps = [stepP1, stepP2, stepP3, stepDone].filter(Boolean);
+    steps.forEach((s) => {
+      s.className = 'step-dot';
+    });
+
+    if (activeStep === 'p1') {
+      if (stepP1) stepP1.className = 'step-dot active';
+    } else if (activeStep === 'p2') {
+      if (stepP1) stepP1.className = 'step-dot done';
+      if (stepP2) stepP2.className = 'step-dot active';
+    } else if (activeStep === 'p3') {
+      if (stepP1) stepP1.className = 'step-dot done';
+      if (stepP2) stepP2.className = 'step-dot done';
+      if (stepP3) stepP3.className = 'step-dot active';
+    } else if (activeStep === 'done') {
+      if (stepP1) stepP1.className = 'step-dot done';
+      if (stepP2) stepP2.className = 'step-dot done';
+      if (stepP3) stepP3.className = 'step-dot done';
+      if (stepDone) stepDone.className = 'step-dot active done';
+    }
+  }
+
+  function resetUploadBox() {
+    isAnalyzing = false;
+    uploadBox.classList.remove('analyzing');
+    if (uploadBoxDefault) uploadBoxDefault.style.display = 'block';
+    if (uploadProgressContainer) uploadProgressContainer.style.display = 'none';
+    if (uploadProgressFill) uploadProgressFill.style.width = '0%';
+    if (uploadPctNum) uploadPctNum.textContent = '0%';
+  }
+
+  function pollAnalysisTask(taskId, originalName) {
+    const startTime = Date.now();
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/task/${taskId}`);
+        if (!res.ok) {
+          throw new Error(`获取任务失败: ${res.status}`);
+        }
+        const taskData = await res.json();
+
+        let step = 'p1';
+        let badge = 'P1 姿态提取';
+        if (taskData.progress >= 25 && taskData.progress < 75) {
+          step = 'p2';
+          badge = 'P2 滤波/FSM';
+        } else if (taskData.progress >= 75 && taskData.progress < 95) {
+          step = 'p3';
+          badge = 'P3 质检评分';
+        } else if (taskData.progress >= 95) {
+          step = 'done';
+          badge = '报告渲染';
+        }
+
+        updateUploadProgress(taskData.progress, taskData.stage_name, badge, step);
+
+        if (taskData.status === 'COMPLETED') {
+          clearInterval(pollInterval);
+          updateUploadProgress(100, '分析完成！专属报告与回放曲线已就绪', '完成', 'done');
+
+          setTimeout(() => {
+            resetUploadBox();
+            if (taskData.result) {
+              renderCaseDetail(taskData.result);
+              switchToUploadsTab(taskData.result.case_id);
+            }
+          }, 500);
+        } else if (taskData.status === 'FAILED') {
+          clearInterval(pollInterval);
+          updateUploadProgress(100, `处理失败: ${taskData.error || '算法异常'}`, '失败', 'p1');
+          setTimeout(() => {
+            resetUploadBox();
+          }, 3500);
+        }
+
+        if (Date.now() - startTime > 35000) {
+          clearInterval(pollInterval);
+          updateUploadProgress(100, '分析超时，请检查视频内容', '超时', 'p1');
+          setTimeout(() => {
+            resetUploadBox();
+          }, 3000);
+        }
+      } catch (e) {
+        console.warn('轮询状态异常:', e);
+      }
+    }, 300);
+  }
+
+  // 7. 切换至“我的分析”选项卡并高亮特定用例
+  async function switchToUploadsTab(targetCaseId = null) {
+    currentMode = 'UPLOADS';
+    setTabActive(btnShowUploads);
+    if (selectorTag) selectorTag.textContent = '在线自定义';
+    await loadUploads(targetCaseId);
+  }
+
+  async function loadUploads(selectTargetId = null) {
+    caseListEl.innerHTML = '<div class="loading-spinner">正在拉取自定义分析记录...</div>';
+    try {
+      const res = await fetch('/api/uploads');
+      uploadedCasesData = await res.json();
+      if (uploadsCountEl) uploadsCountEl.textContent = uploadedCasesData.length;
+
+      if (uploadedCasesData.length > 0) {
+        renderUploadedCaseList(uploadedCasesData);
+        const targetId = selectTargetId || uploadedCasesData[0].case_id;
+        selectCase(targetId);
+      } else {
+        caseListEl.innerHTML = '<div class="empty-hint">暂无自定义分析视频记录。<br>请随手拖拽一段 MP4 到下方上传框启动即时分析。</div>';
+      }
+    } catch (e) {
+      caseListEl.innerHTML = `<div class="empty-hint">获取自定义记录失败: ${e.message}</div>`;
+    }
+  }
+
+  function renderUploadedCaseList(uploads) {
+    caseListEl.innerHTML = '';
+    uploads.forEach((u) => {
+      const card = document.createElement('div');
+      card.className = `case-card ${u.case_id === currentCaseId ? 'active' : ''}`;
+      card.dataset.id = u.case_id;
+
+      let statusBadgeClass = 'acceptable';
+      let statusText = '规范达标';
+      if (u.actual_status === 'NEEDS_IMPROVEMENT') {
+        statusBadgeClass = 'needs_improvement';
+        statusText = '需要改进';
+      } else if (u.actual_status === 'REJECTED') {
+        statusBadgeClass = 'not_evaluated';
+        statusText = '一票否决';
+      }
+
+      card.innerHTML = `
+        <div class="case-card-header">
+          <span class="case-card-title">${u.case_name}</span>
+          <span class="badge badge-eval ${statusBadgeClass}">${statusText}</span>
+        </div>
+        <p class="case-card-desc">${u.description || '用户上传视频'}</p>
+        <div class="case-card-footer">
+          <span>完成: ${u.actual_count} 次</span>
+          <span>状态: ${u.actual_status}</span>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        selectCase(u.case_id);
+      });
+
+      caseListEl.appendChild(card);
+    });
+  }
+
+  function setTabActive(activeBtn) {
+    [btnShowGolden, btnShowDataset, btnShowUploads].forEach((b) => {
+      if (!b) return;
+      if (b === activeBtn) {
+        b.classList.add('active');
+        b.style.background = '#3b82f6';
+        b.style.color = '#fff';
+      } else {
+        b.classList.remove('active');
+        b.style.background = 'transparent';
+        b.style.color = '#94a3b8';
+      }
+    });
+  }
+
+  // 8. 键盘便捷快捷键 (空格播放/暂停，左右箭头步进)
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
@@ -475,30 +751,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 数据集演示与黄金用例选项卡切换
-  if (btnShowGolden && btnShowDataset) {
+  // 9. 选项卡切换事件绑定
+  if (btnShowGolden) {
     btnShowGolden.addEventListener('click', () => {
       currentMode = 'GOLDEN';
-      btnShowGolden.classList.add('active');
-      btnShowGolden.style.background = '#3b82f6';
-      btnShowGolden.style.color = '#fff';
-      btnShowDataset.classList.remove('active');
-      btnShowDataset.style.background = 'transparent';
-      btnShowDataset.style.color = '#94a3b8';
+      setTabActive(btnShowGolden);
       if (selectorTag) selectorTag.textContent = 'P4 基准';
       loadCases();
     });
+  }
 
+  if (btnShowDataset) {
     btnShowDataset.addEventListener('click', () => {
       currentMode = 'DATASET';
-      btnShowDataset.classList.add('active');
-      btnShowDataset.style.background = '#3b82f6';
-      btnShowDataset.style.color = '#fff';
-      btnShowGolden.classList.remove('active');
-      btnShowGolden.style.background = 'transparent';
-      btnShowGolden.style.color = '#94a3b8';
+      setTabActive(btnShowDataset);
       if (selectorTag) selectorTag.textContent = 'MediaPipe 实测';
       loadDatasetDemos();
+    });
+  }
+
+  if (btnShowUploads) {
+    btnShowUploads.addEventListener('click', () => {
+      currentMode = 'UPLOADS';
+      setTabActive(btnShowUploads);
+      if (selectorTag) selectorTag.textContent = '在线自定义';
+      loadUploads();
     });
   }
 

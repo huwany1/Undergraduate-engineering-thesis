@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 
 from p4_validation.contracts import TestCaseId
 from p4_validation.golden_assets import GoldenAssetRegistry
+from .analyzer import OnlineAnalysisManager, AnalysisTaskStatus
 
 
 class DemoService:
@@ -29,6 +30,7 @@ class DemoService:
         self.screenshots_dir = self.validation_dir / "screenshots"
         self.sidecars_dir = self.validation_dir / "sidecars"
         self.registry = GoldenAssetRegistry()
+        self.analysis_manager = OnlineAnalysisManager(repo_root=self.repo_root)
 
     def get_status(self) -> Dict[str, Any]:
         """获取系统状态与工程基线信息"""
@@ -80,6 +82,10 @@ class DemoService:
 
     def get_case_detail(self, case_id: str) -> Optional[Dict[str, Any]]:
         """获取单个用例的完整遥测时序、评估结果与截图资产"""
+        # 支持用户上传的自定义分析结果
+        if case_id.startswith("UPLOAD_") or case_id.startswith("up_"):
+            return self.get_uploaded_case_detail(case_id)
+
         try:
             tid = TestCaseId(case_id)
             spec = self.registry.get_spec(tid)
@@ -290,3 +296,62 @@ class DemoService:
             return data
         except Exception:
             return None
+
+    def submit_video_analysis(self, file_bytes: bytes, filename: str) -> str:
+        """提交视频进行异步在线分析"""
+        return self.analysis_manager.submit_video(file_bytes, filename)
+
+    def get_analysis_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """获取在线分析任务当前进度与状态"""
+        task = self.analysis_manager.get_task(task_id)
+        if not task:
+            # 兼容从持久化磁盘载入历史记录
+            clean_tid = task_id.replace("UPLOAD_", "").replace("up_", "")
+            candidate_file = self.analysis_manager.summary_dir / f"up_{clean_tid}_summary.json"
+            if candidate_file.exists():
+                try:
+                    with open(candidate_file, "r", encoding="utf-8") as f:
+                        res = json.load(f)
+                    return {
+                        "task_id": f"up_{clean_tid}",
+                        "status": "COMPLETED",
+                        "progress": 100,
+                        "stage_name": "已加载历史分析结果",
+                        "result": res,
+                    }
+                except Exception:
+                    pass
+            return None
+
+        return {
+            "task_id": task.task_id,
+            "status": task.status.value,
+            "progress": task.progress,
+            "stage_name": task.stage_name,
+            "error": task.error,
+            "result": task.result,
+        }
+
+    def list_uploaded_cases(self) -> List[Dict[str, Any]]:
+        """列出全部已完成的自定义分析用例"""
+        return self.analysis_manager.list_completed_sessions()
+
+    def get_uploaded_case_detail(self, case_id: str) -> Optional[Dict[str, Any]]:
+        """获取单个自定义分析的详细结果"""
+        task_id = case_id
+        if task_id.startswith("UPLOAD_"):
+            task_id = task_id[len("UPLOAD_"):]
+
+        task = self.analysis_manager.get_task(task_id)
+        if task and task.result:
+            return task.result
+
+        # 回退检查持久化摘要 JSON
+        summary_file = self.analysis_manager.summary_dir / f"{task_id}_summary.json"
+        if summary_file.exists():
+            try:
+                with open(summary_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return None

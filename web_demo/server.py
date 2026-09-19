@@ -36,6 +36,63 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
         self.send_response(HTTPStatus.NO_CONTENT)
         self.end_headers()
 
+    def do_POST(self):
+        """处理 HTTP POST 请求 (如视频上传与在线分析启动)"""
+        path = self.path.split("?")[0]
+        if path in ("/api/upload", "/api/analyze"):
+            self._handle_api_upload()
+            return
+        self._send_json({"error": f"Unknown POST endpoint: {path}"}, status=HTTPStatus.NOT_FOUND)
+
+    def _handle_api_upload(self):
+        """处理视频上传并启动后台分析任务"""
+        try:
+            content_length_str = self.headers.get("Content-Length")
+            if not content_length_str:
+                self._send_json({"error": "Missing Content-Length header"}, status=HTTPStatus.LENGTH_REQUIRED)
+                return
+
+            try:
+                content_length = int(content_length_str)
+            except ValueError:
+                self._send_json({"error": "Invalid Content-Length header"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            # 文件大小硬限 50MB
+            if content_length > 50 * 1024 * 1024:
+                self._send_json(
+                    {"error": f"Payload too large (size: {content_length / 1024 / 1024:.1f}MB, limit: 50MB)"},
+                    status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                )
+                return
+
+            body_bytes = self.rfile.read(content_length)
+            content_type = self.headers.get("Content-Type", "")
+
+            # 解析查询参数或头部中的文件名
+            import urllib.parse
+            from .analyzer import parse_upload_payload
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            query_filename = query.get("filename", [None])[0] or self.headers.get("X-Filename")
+
+            filename, file_bytes = parse_upload_payload(body_bytes, content_type, query_filename)
+
+            # 校验并提交异步任务
+            task_id = self.service.submit_video_analysis(file_bytes, filename)
+            self._send_json(
+                {
+                    "task_id": task_id,
+                    "status": "PENDING",
+                    "filename": filename,
+                    "message": "视频已成功接收，在线分析任务已提交",
+                },
+                status=HTTPStatus.ACCEPTED,
+            )
+        except ValueError as ve:
+            self._send_json({"error": str(ve)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as ex:
+            self._send_json({"error": f"Upload failed: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
     def do_GET(self):
         """处理 HTTP GET 请求"""
         path = self.path.split("?")[0]
@@ -109,6 +166,16 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
                     self._send_json({"error": f"Dataset demo not found: {demo_id}"}, status=HTTPStatus.NOT_FOUND)
                 else:
                     self._send_json(data)
+            elif path.startswith("/api/task/"):
+                task_id = path.split("/api/task/")[1].strip("/")
+                task_data = self.service.get_analysis_task(task_id)
+                if task_data is None:
+                    self._send_json({"error": f"Task not found: {task_id}"}, status=HTTPStatus.NOT_FOUND)
+                else:
+                    self._send_json(task_data)
+            elif path == "/api/uploads":
+                data = self.service.list_uploaded_cases()
+                self._send_json(data)
             elif path.startswith("/api/media/"):
                 self._handle_media_get(path)
             else:
@@ -125,10 +192,23 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
         if subpath.startswith("dataset_demo/"):
             media_root = self.repo_root / "reports" / "dataset_demo"
             subpath = subpath[len("dataset_demo/"):]
+            file_path = (media_root / subpath).resolve()
+        elif subpath.startswith("uploaded/"):
+            # 用户上传视频与生成截图
+            sub = subpath[len("uploaded/"):]
+            if sub.startswith("video/"):
+                media_root = self.repo_root / "reports" / "uploaded_demo" / "uploads"
+                file_path = (media_root / sub[len("video/"):]).resolve()
+            elif sub.startswith("screenshot/"):
+                media_root = self.repo_root / "reports" / "uploaded_demo" / "screenshots"
+                file_path = (media_root / sub[len("screenshot/"):]).resolve()
+            else:
+                media_root = self.repo_root / "reports" / "uploaded_demo"
+                file_path = (media_root / sub).resolve()
         else:
             media_root = self.repo_root / "reports" / "validation_package"
+            file_path = (media_root / subpath).resolve()
 
-        file_path = (media_root / subpath).resolve()
         # 安全防御：禁止逃逸出指定媒体根目录
         if not str(file_path).startswith(str(media_root.resolve())):
             self._send_json({"error": "Forbidden"}, status=HTTPStatus.FORBIDDEN)

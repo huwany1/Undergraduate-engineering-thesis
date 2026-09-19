@@ -72,3 +72,6 @@ $RECYCLE.BIN/
 models/
 *.task
 
+# User Uploaded Dynamic Media
+/reports/uploaded_demo/*
+!/reports/uploaded_demo/.gitkeep
