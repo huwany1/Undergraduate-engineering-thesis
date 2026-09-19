@@ -836,7 +836,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new FormData();
       formData.append('video', file, file.name);
 
-      const res = await fetch('/api/upload', {
+      const activeRadio = document.querySelector('input[name="accel_profile"]:checked');
+      const selectedProfile = activeRadio ? activeRadio.value : 'CPU_HIGH_PERF';
+      const uploadUrl = `/api/upload?accel_profile=${encodeURIComponent(selectedProfile)}`;
+
+      const res = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
       });
@@ -1308,7 +1312,132 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- 硬件算力与显卡加速引擎前端控制器 ---
+  const hardwareAccelPanel = document.getElementById('hardware-accel-panel');
+  const btnDetectHardware = document.getElementById('btn-detect-hardware');
+  const gpuNameText = document.getElementById('gpu-name-text');
+  const gpuTypeBadge = document.getElementById('gpu-type-badge');
+  const radioCpu = document.querySelector('input[name="accel_profile"][value="CPU_HIGH_PERF"]');
+  const radioGpu = document.querySelector('input[name="accel_profile"][value="GPU_ACCELERATED"]');
+  const labelModeCpu = document.getElementById('label-mode-cpu');
+  const labelModeGpu = document.getElementById('label-mode-gpu');
+  const modeNoticeBanner = document.getElementById('mode-notice-banner');
+
+  let currentHardwareData = null;
+
+  async function loadHardwareStatus(forceRefresh = false) {
+    if (btnDetectHardware) {
+      btnDetectHardware.disabled = true;
+      btnDetectHardware.textContent = forceRefresh ? '正在检测...' : '检测显卡';
+    }
+    try {
+      const data = await ApiClient.getHardwareStatus(forceRefresh);
+      currentHardwareData = data;
+      renderHardwareUI(data);
+    } catch (err) {
+      console.warn('获取显卡硬件状态失败:', err);
+      if (gpuNameText) gpuNameText.textContent = '显卡探测遇到问题 (已回退 CPU 模式)';
+    } finally {
+      if (btnDetectHardware) {
+        btnDetectHardware.disabled = false;
+        btnDetectHardware.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          检测显卡
+        `;
+      }
+    }
+  }
+
+  function renderHardwareUI(data) {
+    if (!data) return;
+    const gpus = data.gpus || [];
+    const hasDiscrete = data.has_discrete_gpu;
+    const primaryGpu = gpus[0];
+
+    if (gpuNameText) {
+      gpuNameText.textContent = primaryGpu ? primaryGpu.name : '标准显示适配器';
+      gpuNameText.title = primaryGpu ? `${primaryGpu.name} (显存: ${primaryGpu.ram_mb ? primaryGpu.ram_mb + 'MB' : '共享系统内存'})` : '';
+    }
+
+    if (gpuTypeBadge) {
+      if (hasDiscrete) {
+        gpuTypeBadge.textContent = '独立显卡 (dGPU)';
+        gpuTypeBadge.style.background = 'rgba(34, 197, 94, 0.2)';
+        gpuTypeBadge.style.color = '#4ade80';
+        gpuTypeBadge.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+      } else {
+        const vendor = (primaryGpu && primaryGpu.vendor) ? primaryGpu.vendor : '';
+        gpuTypeBadge.textContent = `${vendor} 集成核显 (iGPU)`.trim();
+        gpuTypeBadge.style.background = 'rgba(234, 179, 8, 0.2)';
+        gpuTypeBadge.style.color = '#facc15';
+        gpuTypeBadge.style.borderColor = 'rgba(234, 179, 8, 0.4)';
+      }
+    }
+
+    const active = data.active_profile || 'CPU_HIGH_PERF';
+    applyProfileSelection(active);
+  }
+
+  function applyProfileSelection(profile) {
+    const isCpu = profile === 'CPU_HIGH_PERF';
+    if (radioCpu) radioCpu.checked = isCpu;
+    if (radioGpu) radioGpu.checked = !isCpu;
+
+    if (labelModeCpu) {
+      labelModeCpu.className = isCpu ? 'mode-card active' : 'mode-card';
+      labelModeCpu.style.borderColor = isCpu ? '#3b82f6' : 'rgba(255,255,255,0.1)';
+      labelModeCpu.style.background = isCpu ? 'rgba(59, 130, 246, 0.08)' : 'rgba(15, 23, 42, 0.4)';
+    }
+    if (labelModeGpu) {
+      labelModeGpu.className = !isCpu ? 'mode-card active' : 'mode-card';
+      labelModeGpu.style.borderColor = !isCpu ? '#3b82f6' : 'rgba(255,255,255,0.1)';
+      labelModeGpu.style.background = !isCpu ? 'rgba(59, 130, 246, 0.08)' : 'rgba(15, 23, 42, 0.4)';
+    }
+
+    if (modeNoticeBanner) {
+      const hasDiscrete = currentHardwareData && currentHardwareData.has_discrete_gpu;
+      if (!isCpu) {
+        modeNoticeBanner.style.display = 'block';
+        if (hasDiscrete) {
+          modeNoticeBanner.style.background = 'rgba(34, 197, 94, 0.15)';
+          modeNoticeBanner.style.color = '#4ade80';
+          modeNoticeBanner.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+          modeNoticeBanner.textContent = '✅ 检测到独立显卡 (dGPU)，GPU 硬件加速已激活，将利用专用显存加速视频解码与预处理。';
+        } else {
+          modeNoticeBanner.style.background = 'rgba(234, 179, 8, 0.15)';
+          modeNoticeBanner.style.color = '#fde047';
+          modeNoticeBanner.style.border = '1px solid rgba(234, 179, 8, 0.3)';
+          modeNoticeBanner.textContent = '⚠️ 当前检测为集成核显 (iGPU)，开启 GPU 加速可能导致桌面窗口 (DWM) 与视频回放轻微卡顿，建议使用 CPU 模式（仍允许开启）。';
+        }
+      } else {
+        modeNoticeBanner.style.display = 'none';
+      }
+    }
+  }
+
+  function setupHardwareAccelerationUI() {
+    if (btnDetectHardware) {
+      btnDetectHardware.addEventListener('click', () => loadHardwareStatus(true));
+    }
+
+    const radios = [radioCpu, radioGpu].filter(Boolean);
+    radios.forEach((r) => {
+      r.addEventListener('change', async (e) => {
+        const val = e.target.value;
+        applyProfileSelection(val);
+        try {
+          await ApiClient.setHardwareProfile(val);
+        } catch (err) {
+          console.error('切换算力模式失败:', err);
+        }
+      });
+    });
+
+    loadHardwareStatus(false);
+  }
+
   // 启动时初始化
   fetchStatus();
+  setupHardwareAccelerationUI();
   loadCases();
 });

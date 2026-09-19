@@ -23,6 +23,7 @@ from p2_temporal.analytics import MultiRepAnalyticsEngine
 from p3_rules.engine import SquatAssessmentEngine
 from p3_rules.contracts import RuleCardConfig, AssessmentStatus
 from .contracts import UniversalFeedbackFormatter
+from .hardware import AccelerationProfile, PrefetchVideoReader
 
 logger = logging.getLogger("web_demo.worker")
 
@@ -44,6 +45,7 @@ class InferenceTaskWorker:
         summary_dir: Path,
         repo_root: Path,
         timeout_sec: float = 60.0,
+        acceleration_profile: AccelerationProfile = AccelerationProfile.CPU_HIGH_PERF,
     ):
         self.task_id = task_id
         self.video_path = Path(video_path)
@@ -54,6 +56,7 @@ class InferenceTaskWorker:
         self.summary_dir = Path(summary_dir)
         self.repo_root = Path(repo_root)
         self.timeout_sec = timeout_sec
+        self.acceleration_profile = acceleration_profile
 
         self.cancel_event = threading.Event()
         self.is_running = False
@@ -81,37 +84,38 @@ class InferenceTaskWorker:
                 except Exception:
                     pass
 
-        cap = None
+        reader = None
         engine = None
 
         try:
             # -------------------------------------------------------------
-            # Stage 1: 视频元数据探测与步长自适应规划 (10%)
+            # Stage 1: 异步预取摄入管道初始化与元数据探测 (10%)
             # -------------------------------------------------------------
-            report_progress(10, "读取视频元数据并探测动作特征...")
+            report_progress(10, "启动异步预取管道并探测视频特征...")
             if not self.video_path.exists():
                 raise FileNotFoundError(f"视频文件不存在: {self.video_path}")
 
-            cap = cv2.VideoCapture(str(self.video_path))
-            if not cap.isOpened():
-                raise RuntimeError("OpenCV 无法解码该视频流，文件可能损坏或编码不受支持")
+            # 启动双缓冲异步预读取器 (智能视网膜前置等比规整至 720p，避免 4K 内存风暴)
+            reader = PrefetchVideoReader(
+                video_path=self.video_path,
+                profile=self.acceleration_profile,
+                max_dimension=720,
+                queue_size=16,
+            ).start()
 
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = float(cap.get(cv2.CAP_PROP_FPS))
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            width = reader.width
+            height = reader.height
+            fps = reader.fps
+            total_frames = reader.total_frames
 
-            if fps <= 0 or fps != fps:
-                fps = 30.0
-            if total_frames <= 0:
-                total_frames = 150
-
-            # 动态自适应分帧采样策略 (满足 3~5s 实时响应 SLA, 高帧率视频等效抽帧)
+            # 动态自适应分帧采样策略 (波谷高保真，直立自适应跳帧)
             base_stride = 1
             if fps >= 50.0:
                 base_stride = 2
             elif total_frames > 350:
-                base_stride = max(1, int(total_frames / 160))
+                base_stride = max(2, int(total_frames / 160))
+            elif total_frames > 150:
+                base_stride = 2
 
             # -------------------------------------------------------------
             # Stage 2: 预热姿态引擎与算法组件 (25%)
@@ -139,7 +143,7 @@ class InferenceTaskWorker:
             best_trough_idx = 0
 
             # -------------------------------------------------------------
-            # Stage 3: 逐帧提取与状态机计算循环 (带超时看门狗熔断与下蹲波谷密集保真)
+            # Stage 3: 逐帧异步提取与状态机计算 (带超时看门狗与下蹲波谷密集保真)
             # -------------------------------------------------------------
             in_squat_zone = False
 
@@ -151,21 +155,20 @@ class InferenceTaskWorker:
                 if self.cancel_event.is_set():
                     raise RuntimeError("任务已被客户端主动取消")
 
-                ret, frame = cap.read()
-                if not ret:
+                raw_frame, rgb, current_frame_idx = reader.get_frame(timeout=5.0)
+                if raw_frame is None or rgb is None:
                     break
+                frame_idx = current_frame_idx
 
                 # 3.2 动态自适应步长：波谷减速区自适应密集采样, 直立阶段跳帧加速
                 active_stride = 1 if in_squat_zone else base_stride
                 if frame_idx % active_stride != 0:
-                    frame_idx += 1
                     continue
 
                 time_s = frame_idx / fps
                 timeline_us = int(time_s * 1e6)
 
-                # 3.3 MediaPipe 姿态推理
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                # 3.3 MediaPipe 姿态推理 (使用已经完成视网膜归一化且色彩转换好的 rgb 帧)
                 pose_res = engine.infer_frame(rgb, timeline_us)
 
                 # 3.4 质量门控与 P2 时序解算
@@ -215,14 +218,14 @@ class InferenceTaskWorker:
                 # 记录全局最低膝角候选
                 if kine.is_valid and kine.filtered_knee_angle < min_knee_ever:
                     min_knee_ever = kine.filtered_knee_angle
-                    best_trough_frame = frame.copy()
+                    best_trough_frame = raw_frame.copy()
                     best_trough_idx = frame_idx
 
                 # 捕获关键特征快照
                 if event_val in ("INFLECTION_REACHED", "REP_COMPLETED"):
                     kf_filename = f"{self.task_id}_kf_{frame_idx}_{event_val}.png"
                     kf_path = self.screenshot_dir / kf_filename
-                    cv2.imwrite(str(kf_path), frame)
+                    cv2.imwrite(str(kf_path), raw_frame)
                     desc = (
                         f"动作波谷极值 (膝角: {kine.filtered_knee_angle:.1f}°, 前倾: {kine.filtered_torso_angle:.1f}°)"
                         if event_val == "INFLECTION_REACHED"
@@ -237,7 +240,6 @@ class InferenceTaskWorker:
                     })
 
                 sampled_count += 1
-                frame_idx += 1
 
                 # 动态进度平滑推进 (25% ~ 75%)
                 if sampled_count % 8 == 0:
@@ -366,8 +368,11 @@ class InferenceTaskWorker:
 
         finally:
             self.is_running = False
-            if cap is not None:
-                cap.release()
+            if reader is not None:
+                try:
+                    reader.close()
+                except Exception:
+                    pass
             if engine is not None:
                 try:
                     engine.close()

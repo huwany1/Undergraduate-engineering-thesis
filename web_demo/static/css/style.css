@@ -2004,4 +2004,31 @@ body {
   40% { opacity: 1; }
 }
 
+/* ==========================================================================
+   硬件算力与显卡加速引擎卡片样式 (Hardware Acceleration Panel)
+   ========================================================================== */
+.hardware-accel-panel {
+  margin-bottom: 14px;
+}
+
+.mode-card {
+  user-select: none;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.mode-card:hover {
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  background: rgba(30, 41, 59, 0.7) !important;
+}
+
+.mode-card.active {
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
+}
+
+#btn-detect-hardware:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6 !important;
+}
+
 

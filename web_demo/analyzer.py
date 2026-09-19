@@ -22,6 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, List, Optional, Tuple
 
 from .worker import InferenceTaskWorker
+from .hardware import AccelerationProfile, HardwareProfileManager
 
 logger = logging.getLogger("web_demo.analyzer")
 
@@ -102,7 +103,12 @@ class OnlineAnalysisManager:
     MAX_CONCURRENT_WORKERS = 2              # 最大并发推理线程数
     DEFAULT_TIMEOUT_SEC = 60.0             # 单个任务超时熔断上限
 
-    def __init__(self, repo_root: Optional[Path] = None, timeout_sec: float = DEFAULT_TIMEOUT_SEC):
+    def __init__(
+        self,
+        repo_root: Optional[Path] = None,
+        timeout_sec: float = DEFAULT_TIMEOUT_SEC,
+        hardware_manager: Optional[HardwareProfileManager] = None,
+    ):
         self.repo_root = Path(repo_root) if repo_root else Path(__file__).resolve().parent.parent
         self.work_root = self.repo_root / "reports" / "uploaded_demo"
         self.upload_dir = self.work_root / "uploads"
@@ -111,6 +117,7 @@ class OnlineAnalysisManager:
         self.summary_dir = self.work_root / "summaries"
         self.model_path = self.repo_root / "models" / "pose_landmarker_full.task"
         self.timeout_sec = timeout_sec
+        self.hardware_manager = hardware_manager
 
         # 创建目录结构
         for d in (self.upload_dir, self.screenshot_dir, self.sidecar_dir, self.summary_dir):
@@ -127,6 +134,7 @@ class OnlineAnalysisManager:
         self,
         file_bytes: bytes,
         original_filename: str,
+        acceleration_profile: Optional[AccelerationProfile] = None,
     ) -> str:
         """提交视频进行异步在线分析，返回任务 ID"""
         # 1. 严格文件大小门控
@@ -149,6 +157,13 @@ class OnlineAnalysisManager:
         with open(saved_video_path, "wb") as f:
             f.write(file_bytes)
 
+        # 决定生效的算力模式
+        eff_profile = acceleration_profile
+        if eff_profile is None and self.hardware_manager:
+            eff_profile = self.hardware_manager.current_profile
+        if eff_profile is None:
+            eff_profile = AccelerationProfile.CPU_HIGH_PERF
+
         # 实例化独立的 InferenceTaskWorker
         worker = InferenceTaskWorker(
             task_id=task_id,
@@ -160,6 +175,7 @@ class OnlineAnalysisManager:
             summary_dir=self.summary_dir,
             repo_root=self.repo_root,
             timeout_sec=self.timeout_sec,
+            acceleration_profile=eff_profile,
         )
 
         task = AnalysisTask(

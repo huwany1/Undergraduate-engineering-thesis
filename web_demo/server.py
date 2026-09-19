@@ -63,7 +63,25 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
         elif path == "/api/llm/chat":
             self._handle_llm_chat_post()
             return
+        elif path == "/api/system/hardware/profile":
+            self._handle_hardware_profile_post()
+            return
         self._send_json({"error": f"Unknown POST endpoint: {path}"}, status=HTTPStatus.NOT_FOUND)
+
+    def _handle_hardware_profile_post(self):
+        """更新硬件算力加速模式配置"""
+        try:
+            body = self._read_json_body()
+            profile = body.get("profile")
+            if not profile:
+                self._send_json({"error": "Missing 'profile' field in request body"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            data = self.service.set_hardware_profile(profile)
+            self._send_json(data, status=HTTPStatus.OK)
+        except ValueError as ve:
+            self._send_json({"error": str(ve)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as ex:
+            self._send_json({"error": f"Failed to set hardware profile: {str(ex)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def _handle_live_start(self):
         """启动新实时摄像头会话"""
@@ -231,9 +249,10 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
             query_filename = query.get("filename", [None])[0] or self.headers.get("X-Filename")
 
             filename, file_bytes = parse_upload_payload(body_bytes, content_type, query_filename)
+            accel_profile = query.get("accel_profile", [None])[0] or self.headers.get("X-Accel-Profile")
 
             # 校验并提交异步任务
-            task_id = self.service.submit_video_analysis(file_bytes, filename)
+            task_id = self.service.submit_video_analysis(file_bytes, filename, acceleration_profile=accel_profile)
             self._send_json(
                 {
                     "task_id": task_id,
@@ -297,6 +316,10 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
         try:
             if path == "/api/status":
                 data = self.service.get_status()
+                self._send_json(data)
+            elif path == "/api/system/hardware":
+                force_refresh = "refresh=1" in self.path
+                data = self.service.get_hardware_status(force_refresh=force_refresh)
                 self._send_json(data)
             elif path == "/api/cases":
                 data = self.service.get_cases()

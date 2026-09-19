@@ -77,8 +77,19 @@
       return this.get(`/api/task/${encodeURIComponent(taskId)}`);
     }
 
-    static async uploadVideo(formData) {
-      const resp = await fetch('/api/upload', {
+    static async getHardwareStatus(forceRefresh = false) {
+      return this.get(`/api/system/hardware${forceRefresh ? '?refresh=1' : ''}`);
+    }
+
+    static async setHardwareProfile(profile) {
+      return this.post('/api/system/hardware/profile', JSON.stringify({ profile }), {
+        'Content-Type': 'application/json',
+      });
+    }
+
+    static async uploadVideo(formData, accelProfile = null) {
+      const url = accelProfile ? `/api/upload?accel_profile=${encodeURIComponent(accelProfile)}` : '/api/upload';
+      const resp = await fetch(url, {
         method: 'POST',
         body: formData,
       });

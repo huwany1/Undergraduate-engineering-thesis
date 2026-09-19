@@ -85,6 +85,53 @@
         </ul>
       </section>
 
+      <!-- 硬件算力与显卡加速引擎 -->
+      <section class="panel hardware-accel-panel" id="hardware-accel-panel">
+        <div class="panel-header" style="justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 14px;">🚀</span>
+            <h2>硬件算力与显卡加速</h2>
+          </div>
+          <button class="btn btn-sm btn-outline" id="btn-detect-hardware" title="手动检测本地显卡配置" style="padding: 2px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px; border-color: rgba(59, 130, 246, 0.4);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            检测显卡
+          </button>
+        </div>
+
+        <!-- 显卡硬件状态卡片 -->
+        <div class="hardware-info-card" id="hardware-info-card" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 11px; color: #94a3b8;">主显示设备</span>
+            <span class="badge" id="gpu-type-badge" style="font-size: 10px; padding: 1px 6px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);">正在检测...</span>
+          </div>
+          <div id="gpu-name-text" style="font-size: 12px; font-weight: 600; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            正在探测本地显卡信息...
+          </div>
+        </div>
+
+        <!-- 算力模式显式切换单选控件 -->
+        <div class="accel-mode-selector" style="display: flex; flex-direction: column; gap: 6px;">
+          <label class="mode-card active" id="label-mode-cpu" style="display: flex; gap: 8px; padding: 8px; border-radius: 6px; border: 1px solid #3b82f6; background: rgba(59, 130, 246, 0.08); cursor: pointer; transition: all 0.2s;">
+            <input type="radio" name="accel_profile" value="CPU_HIGH_PERF" checked style="margin-top: 3px;">
+            <div style="flex: 1;">
+              <div style="font-size: 12px; font-weight: 600; color: #60a5fa;">⚡ CPU 极致高吞吐 (核显首选)</div>
+              <div style="font-size: 11px; color: #94a3b8; line-height: 1.3;">多核并发 · 视网膜预缩放 · 异步双缓冲 · 零画面卡顿</div>
+            </div>
+          </label>
+
+          <label class="mode-card" id="label-mode-gpu" style="display: flex; gap: 8px; padding: 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(15, 23, 42, 0.4); cursor: pointer; transition: all 0.2s;">
+            <input type="radio" name="accel_profile" value="GPU_ACCELERATED" style="margin-top: 3px;">
+            <div style="flex: 1;">
+              <div style="font-size: 12px; font-weight: 600; color: #f1f5f9;">🔥 GPU 显卡硬件加速 (N卡/A卡)</div>
+              <div style="font-size: 11px; color: #94a3b8; line-height: 1.3;">专用硬件解码 · 异构并行 · 显存温控限流</div>
+            </div>
+          </label>
+        </div>
+
+        <!-- 动态安全提示条 -->
+        <div id="mode-notice-banner" style="margin-top: 8px; font-size: 11px; line-height: 1.4; padding: 6px 8px; border-radius: 4px; display: none;"></div>
+      </section>
+
       <!-- 本地视频上传演示 -->
       <section class="panel upload-panel" id="upload-panel-section">
         <div class="panel-header">

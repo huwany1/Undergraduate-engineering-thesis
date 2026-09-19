@@ -20,6 +20,7 @@ from .contracts import UniversalFeedbackFormatter, AssessmentReportDto, validate
 from .analyzer import OnlineAnalysisManager, AnalysisTaskStatus
 from .live_manager import LiveStreamManager
 from .llm_coach import DeepSeekCoachService
+from .hardware import HardwareProfileManager, AccelerationProfile, SystemHardwareProbe
 
 
 class DemoService:
@@ -35,7 +36,11 @@ class DemoService:
         self.screenshots_dir = self.validation_dir / "screenshots"
         self.sidecars_dir = self.validation_dir / "sidecars"
         self.registry = GoldenAssetRegistry()
-        self.analysis_manager = OnlineAnalysisManager(repo_root=self.repo_root)
+        self.hardware_manager = HardwareProfileManager()
+        self.analysis_manager = OnlineAnalysisManager(
+            repo_root=self.repo_root,
+            hardware_manager=self.hardware_manager,
+        )
         self.live_manager = LiveStreamManager(repo_root=self.repo_root)
         self.llm_coach = DeepSeekCoachService(repo_root=str(self.repo_root))
 
@@ -397,9 +402,36 @@ class DemoService:
         except Exception:
             return None
 
-    def submit_video_analysis(self, file_bytes: bytes, filename: str) -> str:
+    def get_hardware_status(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """获取本地显卡硬件探测信息与当前加速模式"""
+        if force_refresh:
+            SystemHardwareProbe.detect(force_refresh=True)
+        return self.hardware_manager.get_status_payload()
+
+    def set_hardware_profile(self, profile_str: str) -> Dict[str, Any]:
+        """设置全局硬件算力加速模式"""
+        try:
+            profile = AccelerationProfile(profile_str)
+        except ValueError:
+            valid_profiles = [p.value for p in AccelerationProfile]
+            raise ValueError(f"无效的算力加速模式: {profile_str}，有效值: {valid_profiles}")
+        self.hardware_manager.set_profile(profile)
+        return self.get_hardware_status()
+
+    def submit_video_analysis(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        acceleration_profile: Optional[str] = None,
+    ) -> str:
         """提交视频进行异步在线分析"""
-        return self.analysis_manager.submit_video(file_bytes, filename)
+        profile = None
+        if acceleration_profile:
+            try:
+                profile = AccelerationProfile(acceleration_profile)
+            except ValueError:
+                pass
+        return self.analysis_manager.submit_video(file_bytes, filename, acceleration_profile=profile)
 
     def get_analysis_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         """获取在线分析任务当前进度与状态"""
