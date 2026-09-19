@@ -90,6 +90,10 @@ class P2TemporalPipeline:
             filt_torso = self.torso_filter.prev_x if self.torso_filter.prev_x is not None else raw_torso
             torso_vel = 0.0
 
+        extended_bio = self.kinematics_calc.extract_extended_biomechanics(
+            landmarks_2d, side=side, current_torso_angle=raw_torso
+        )
+
         kinematics = MotionKinematics(
             raw_knee_angle=raw_knee,
             filtered_knee_angle=filt_knee,
@@ -99,6 +103,10 @@ class P2TemporalPipeline:
             torso_angular_velocity=torso_vel,
             hip_y_norm=hip_y_norm,
             is_valid=overall_valid,
+            knee_valgus_ratio=extended_bio.get("valgus_ratio"),
+            heel_lift_deg=extended_bio.get("heel_lift_deg"),
+            pelvic_tilt_deg=extended_bio.get("pelvic_tilt_deg"),
+            bilateral_knee_diff=extended_bio.get("bilateral_knee_diff"),
         )
 
         # 3. 驱动有限状态机流转
@@ -119,6 +127,7 @@ class P2TemporalPipeline:
             frame_index=frame_index,
             timeline_us=timeline_us,
             reason_codes=reasons,
+            extended_kinematics=extended_bio,
         )
 
         active_id = self.counter.active_rep_id if self.counter.in_progress else None

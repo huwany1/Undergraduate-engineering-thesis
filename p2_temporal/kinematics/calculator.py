@@ -22,12 +22,16 @@ class KinematicsCalculator:
             "hip": 23,
             "knee": 25,
             "ankle": 27,
+            "heel": 29,
+            "foot_index": 31,
         },
         "RIGHT": {
             "shoulder": 12,
             "hip": 24,
             "knee": 26,
             "ankle": 28,
+            "heel": 30,
+            "foot_index": 32,
         },
     }
 
@@ -36,11 +40,13 @@ class KinematicsCalculator:
     def __init__(self):
         self.standing_hip_y: Optional[float] = None
         self.standing_thigh_length: Optional[float] = None
+        self.standing_heel_pitch: Optional[float] = None
 
     def reset_baseline(self) -> None:
         """重置站立基线校准值"""
         self.standing_hip_y = None
         self.standing_thigh_length = None
+        self.standing_heel_pitch = None
 
     @classmethod
     def calculate_angle_3points(
@@ -159,3 +165,111 @@ class KinematicsCalculator:
 
         is_valid = knee_ok and torso_ok
         return knee_angle, torso_angle, hip_y_norm, is_valid
+
+    def extract_extended_biomechanics(
+        self,
+        landmarks: Sequence[Any],
+        side: str = "LEFT",
+        current_torso_angle: float = 0.0,
+    ) -> Dict[str, Any]:
+        """
+        提取四大伤病隐患运动学生物力学特征:
+        1. 膝关节内扣比率 (valgus_ratio, 需双侧正面/半侧可见)
+        2. 脚跟离地抬起俯仰角 (heel_lift_deg)
+        3. 骨盆翻转角度 (pelvic_tilt_deg)
+        4. 左右双腿不对称差 (bilateral_knee_diff, 需双侧可见)
+        """
+        res: Dict[str, Any] = {
+            "valgus_ratio": None,
+            "heel_lift_deg": 0.0,
+            "pelvic_tilt_deg": 0.0,
+            "bilateral_knee_diff": None,
+            "is_frontal_observable": False,
+        }
+
+        if len(landmarks) < 33:
+            return res
+
+        def get_pt_vis(idx: int) -> Tuple[float, float, float]:
+            item = landmarks[idx]
+            vis = 1.0
+            if hasattr(item, "x") and hasattr(item, "y"):
+                vis = getattr(item, "visibility", 1.0) or 1.0
+                return float(item.x), float(item.y), float(vis)
+            elif isinstance(item, dict):
+                vis = item.get("visibility", 1.0)
+                if vis is None:
+                    vis = 1.0
+                return float(item["x"]), float(item["y"]), float(vis)
+            elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                vis = float(item[2]) if len(item) >= 3 and item[2] is not None else 1.0
+                return float(item[0]), float(item[1]), float(vis)
+            return 0.0, 0.0, 0.0
+
+        try:
+            l_hip_x, l_hip_y, l_hip_v = get_pt_vis(23)
+            r_hip_x, r_hip_y, r_hip_v = get_pt_vis(24)
+            l_knee_x, l_knee_y, l_knee_v = get_pt_vis(25)
+            r_knee_x, r_knee_y, r_knee_v = get_pt_vis(26)
+            l_ankle_x, l_ankle_y, l_ankle_v = get_pt_vis(27)
+            r_ankle_x, r_ankle_y, r_ankle_v = get_pt_vis(28)
+            l_heel_x, l_heel_y, _ = get_pt_vis(29)
+            r_heel_x, r_heel_y, _ = get_pt_vis(30)
+            l_toe_x, l_toe_y, _ = get_pt_vis(31)
+            r_toe_x, r_toe_y, _ = get_pt_vis(32)
+        except Exception:
+            return res
+
+        side_key = "LEFT" if side.upper().startswith("LEFT") else "RIGHT"
+
+        # 1. 脚跟离地计算 (Heel Lift)
+        heel_x, heel_y = (l_heel_x, l_heel_y) if side_key == "LEFT" else (r_heel_x, r_heel_y)
+        toe_x, toe_y = (l_toe_x, l_toe_y) if side_key == "LEFT" else (r_toe_x, r_toe_y)
+
+        dx = abs(toe_x - heel_x)
+        # 屏幕图像坐标系 y 向下: 若脚后跟抬起，heel_y 向上变小，toe_y - heel_y 变大
+        dy = toe_y - heel_y
+        pitch_deg = math.degrees(math.atan2(dy, dx + self.EPSILON))
+
+        if self.standing_heel_pitch is None:
+            self.standing_heel_pitch = pitch_deg
+
+        heel_lift = max(0.0, pitch_deg - self.standing_heel_pitch)
+        res["heel_lift_deg"] = round(heel_lift, 2)
+
+        # 2. 骨盆翻转计算 (Pelvic Tilt / Butt Wink)
+        hip_x = l_hip_x if side_key == "LEFT" else r_hip_x
+        hip_y = l_hip_y if side_key == "LEFT" else r_hip_y
+        knee_x = l_knee_x if side_key == "LEFT" else r_knee_x
+        knee_y = l_knee_y if side_key == "LEFT" else r_knee_y
+
+        thigh_dx = knee_x - hip_x
+        thigh_dy = knee_y - hip_y
+        thigh_angle = math.degrees(math.atan2(abs(thigh_dy), abs(thigh_dx) + self.EPSILON))
+        # 当大腿趋于水平甚至下探时，躯干角与大腿角不匹配且反折时计算骨盆卷折
+        pelvic_dev = max(0.0, current_torso_angle - thigh_angle - 25.0)
+        res["pelvic_tilt_deg"] = round(pelvic_dev, 2)
+
+        # 3. 视点可观测性判断 (Frontal / Semi-frontal vs Pure Sagittal)
+        hip_w = math.hypot(l_hip_x - r_hip_x, l_hip_y - r_hip_y)
+        thigh_ref = self.standing_thigh_length or 0.25
+        min_both_vis = min(l_knee_v, r_knee_v, l_ankle_v, r_ankle_v)
+
+        # 需双侧可见且非绝对单侧侧视遮挡
+        if min_both_vis >= 0.5 and hip_w >= (0.12 * thigh_ref):
+            res["is_frontal_observable"] = True
+
+            # 膝关节内扣比率: 双膝宽度 / 双踝宽度
+            knee_w = math.hypot(l_knee_x - r_knee_x, l_knee_y - r_knee_y)
+            ankle_w = math.hypot(l_ankle_x - r_ankle_x, l_ankle_y - r_ankle_y)
+            if ankle_w > self.EPSILON:
+                valgus_r = knee_w / ankle_w
+                res["valgus_ratio"] = round(valgus_r, 3)
+
+            # 动作双侧不对称: 左右膝屈曲角差值
+            l_knee_ang, l_ok = self.calculate_angle_3points((l_hip_x, l_hip_y), (l_knee_x, l_knee_y), (l_ankle_x, l_ankle_y))
+            r_knee_ang, r_ok = self.calculate_angle_3points((r_hip_x, r_hip_y), (r_knee_x, r_knee_y), (r_ankle_x, r_ankle_y))
+            if l_ok and r_ok:
+                res["bilateral_knee_diff"] = round(abs(l_knee_ang - r_knee_ang), 2)
+
+        return res

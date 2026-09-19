@@ -44,6 +44,10 @@ class AssessmentReasonCode(str, Enum):
     # 质量要点缺陷码
     INSUFFICIENT_DEPTH = "INSUFFICIENT_DEPTH"
     EXCESSIVE_TORSO_LEAN = "EXCESSIVE_TORSO_LEAN"
+    KNEE_VALGUS = "KNEE_VALGUS"
+    HEEL_LIFT = "HEEL_LIFT"
+    PELVIC_TILT = "PELVIC_TILT"
+    BILATERAL_ASYMMETRY = "BILATERAL_ASYMMETRY"
 
     # 门控拒绝与异常码
     INCOMPLETE_REP = "INCOMPLETE_REP"
@@ -145,11 +149,49 @@ class LeanRuleConfig:
 
 
 @dataclass(slots=True)
+class ValgusRuleConfig:
+    """R-VALGUS-001 膝关节内扣代理配置"""
+    rule_id: str = "R-VALGUS-001"
+    threshold_ratio: float = 0.82
+    tolerance_ratio: float = 0.05
+    min_visibility: float = 0.5
+
+
+@dataclass(slots=True)
+class HeelLiftRuleConfig:
+    """R-HEEL-001 脚跟离地抬起代理配置"""
+    rule_id: str = "R-HEEL-001"
+    threshold_deg: float = 12.0
+    tolerance_deg: float = 3.0
+
+
+@dataclass(slots=True)
+class PelvicTiltRuleConfig:
+    """R-PELVIC-001 骨盆翻转(臀部眨眼)代理配置"""
+    rule_id: str = "R-PELVIC-001"
+    threshold_deg: float = 10.0
+    tolerance_deg: float = 3.0
+
+
+@dataclass(slots=True)
+class AsymmetryRuleConfig:
+    """R-ASYM-001 双侧动作不对称代理配置"""
+    rule_id: str = "R-ASYM-001"
+    threshold_deg: float = 15.0
+    tolerance_deg: float = 3.0
+    min_visibility: float = 0.5
+
+
+@dataclass(slots=True)
 class RuleCardConfig:
     """规则卡通用配置载体"""
     cycle_rule: CycleRuleConfig = field(default_factory=CycleRuleConfig)
     depth_rule: DepthRuleConfig = field(default_factory=DepthRuleConfig)
     lean_rule: LeanRuleConfig = field(default_factory=LeanRuleConfig)
+    valgus_rule: ValgusRuleConfig = field(default_factory=ValgusRuleConfig)
+    heel_rule: HeelLiftRuleConfig = field(default_factory=HeelLiftRuleConfig)
+    pelvic_rule: PelvicTiltRuleConfig = field(default_factory=PelvicTiltRuleConfig)
+    asymmetry_rule: AsymmetryRuleConfig = field(default_factory=AsymmetryRuleConfig)
     aggregation_policy_version: str = "AGGR-SQUAT-v1.0"
 
 

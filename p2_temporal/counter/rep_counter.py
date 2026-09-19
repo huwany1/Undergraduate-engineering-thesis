@@ -33,6 +33,12 @@ class RepetitionCounter:
         self.min_knee_angle: float = 180.0
         self.max_torso_lean_angle: float = 0.0
 
+        # 扩展伤病隐患运动学特征极值暂存
+        self.min_valgus_ratio: Optional[float] = None
+        self.max_heel_lift_deg: float = 0.0
+        self.max_pelvic_tilt_deg: float = 0.0
+        self.max_bilateral_diff_deg: float = 0.0
+
         # 归档记录
         self.records: List[RepetitionRecord] = []
 
@@ -47,6 +53,10 @@ class RepetitionCounter:
         self.bottom_timeline_us = 0
         self.min_knee_angle = 180.0
         self.max_torso_lean_angle = 0.0
+        self.min_valgus_ratio = None
+        self.max_heel_lift_deg = 0.0
+        self.max_pelvic_tilt_deg = 0.0
+        self.max_bilateral_diff_deg = 0.0
         self.records.clear()
 
     def update(
@@ -58,6 +68,7 @@ class RepetitionCounter:
         frame_index: int,
         timeline_us: int,
         reason_codes: Optional[List[TemporalReasonCode]] = None,
+        extended_kinematics: Optional[Dict[str, Any]] = None,
     ) -> int:
         """
         根据当前帧状态机事件更新动作切片与计数器
@@ -74,6 +85,10 @@ class RepetitionCounter:
             self.bottom_timeline_us = timeline_us
             self.min_knee_angle = knee_angle
             self.max_torso_lean_angle = torso_angle
+            self.min_valgus_ratio = None
+            self.max_heel_lift_deg = 0.0
+            self.max_pelvic_tilt_deg = 0.0
+            self.max_bilateral_diff_deg = 0.0
 
         # 2. 动作进行中，持续统计特征极值
         if self.in_progress:
@@ -84,6 +99,30 @@ class RepetitionCounter:
 
             if torso_angle > self.max_torso_lean_angle:
                 self.max_torso_lean_angle = torso_angle
+
+            if extended_kinematics:
+                vr = extended_kinematics.get("valgus_ratio")
+                if vr is not None:
+                    self.min_valgus_ratio = min(self.min_valgus_ratio, vr) if self.min_valgus_ratio is not None else vr
+
+                hl = extended_kinematics.get("heel_lift_deg")
+                if hl is not None and hl > self.max_heel_lift_deg:
+                    self.max_heel_lift_deg = hl
+
+                pt = extended_kinematics.get("pelvic_tilt_deg")
+                if pt is not None and pt > self.max_pelvic_tilt_deg:
+                    self.max_pelvic_tilt_deg = pt
+
+                bd = extended_kinematics.get("bilateral_knee_diff")
+                if bd is not None and bd > self.max_bilateral_diff_deg:
+                    self.max_bilateral_diff_deg = bd
+
+        ext_metrics = {
+            "min_valgus_ratio": round(self.min_valgus_ratio, 3) if self.min_valgus_ratio is not None else None,
+            "max_heel_lift_deg": round(self.max_heel_lift_deg, 2),
+            "max_pelvic_tilt_deg": round(self.max_pelvic_tilt_deg, 2),
+            "max_bilateral_diff_deg": round(self.max_bilateral_diff_deg, 2) if self.max_bilateral_diff_deg > 0.0 else None,
+        }
 
         # 3. 处理完成事件 (REP_COMPLETED)
         if event == RepetitionEvent.REP_COMPLETED:
@@ -111,6 +150,7 @@ class RepetitionCounter:
                         min_knee_angle=self.min_knee_angle,
                         max_torso_lean_angle=self.max_torso_lean_angle,
                         reason_codes=[TemporalReasonCode.DISCARDED_TOO_FAST.value] + reason_str_list,
+                        extended_metrics=ext_metrics,
                     )
                     self.records.append(record)
                 else:
@@ -132,6 +172,7 @@ class RepetitionCounter:
                         min_knee_angle=self.min_knee_angle,
                         max_torso_lean_angle=self.max_torso_lean_angle,
                         reason_codes=[TemporalReasonCode.NORMAL.value] + reason_str_list,
+                        extended_metrics=ext_metrics,
                     )
                     self.records.append(record)
                     self.active_rep_id += 1
@@ -162,6 +203,7 @@ class RepetitionCounter:
                     min_knee_angle=self.min_knee_angle,
                     max_torso_lean_angle=self.max_torso_lean_angle,
                     reason_codes=reason_str_list,
+                    extended_metrics=ext_metrics,
                 )
                 self.records.append(record)
                 self.active_rep_id += 1

@@ -423,6 +423,21 @@ class OnlineAnalysisManager:
 
             total_elapsed_ms = (time.perf_counter() - start_time) * 1000
 
+            all_reasons = []
+            for a in assessments:
+                for v in a.violations:
+                    if v.reason_code not in all_reasons:
+                        all_reasons.append(v.reason_code)
+            if not all_reasons and primary_reason != "NONE":
+                all_reasons.append(primary_reason)
+
+            ext_bio_summary = {
+                "min_valgus_ratio": min([r.extended_metrics.get("min_valgus_ratio") for r in completed_reps if r.extended_metrics and r.extended_metrics.get("min_valgus_ratio") is not None], default=None),
+                "max_heel_lift_deg": max([r.extended_metrics.get("max_heel_lift_deg", 0.0) for r in completed_reps if r.extended_metrics], default=0.0),
+                "max_pelvic_tilt_deg": max([r.extended_metrics.get("max_pelvic_tilt_deg", 0.0) for r in completed_reps if r.extended_metrics], default=0.0),
+                "max_bilateral_diff_deg": max([r.extended_metrics.get("max_bilateral_diff_deg") for r in completed_reps if r.extended_metrics and r.extended_metrics.get("max_bilateral_diff_deg") is not None], default=None),
+            }
+
             # 组装与现有 Web 看板完全同构的报告结果
             report_result = {
                 "case_id": f"UPLOAD_{task_id}",
@@ -435,9 +450,10 @@ class OnlineAnalysisManager:
                 "actual_count": total_reps,
                 "actual_status": overall_status,
                 "actual_primary_reason": primary_reason,
-                "actual_reason_codes": [primary_reason],
+                "actual_reason_codes": all_reasons if all_reasons else [primary_reason],
                 "measured_min_knee_angle": round(min_knee, 1),
                 "measured_max_torso_angle": round(max_torso, 1),
+                "extended_biomechanics": ext_bio_summary,
                 "execution_time_ms": round(total_elapsed_ms, 1),
                 "summary_feedback": summary_feedback,
                 "has_video": True,

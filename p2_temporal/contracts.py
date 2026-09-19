@@ -47,9 +47,13 @@ class MotionKinematics:
     torso_angular_velocity: float
     hip_y_norm: float
     is_valid: bool = True
+    knee_valgus_ratio: Optional[float] = None
+    heel_lift_deg: Optional[float] = None
+    pelvic_tilt_deg: Optional[float] = None
+    bilateral_knee_diff: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "raw_knee_angle": round(self.raw_knee_angle, 2),
             "filtered_knee_angle": round(self.filtered_knee_angle, 2),
             "knee_angular_velocity": round(self.knee_angular_velocity, 2),
@@ -59,6 +63,15 @@ class MotionKinematics:
             "hip_y_norm": round(self.hip_y_norm, 4),
             "is_valid": self.is_valid,
         }
+        if self.knee_valgus_ratio is not None:
+            d["knee_valgus_ratio"] = round(self.knee_valgus_ratio, 3)
+        if self.heel_lift_deg is not None:
+            d["heel_lift_deg"] = round(self.heel_lift_deg, 2)
+        if self.pelvic_tilt_deg is not None:
+            d["pelvic_tilt_deg"] = round(self.pelvic_tilt_deg, 2)
+        if self.bilateral_knee_diff is not None:
+            d["bilateral_knee_diff"] = round(self.bilateral_knee_diff, 2)
+        return d
 
 
 @dataclass
@@ -79,6 +92,7 @@ class RepetitionRecord:
     min_knee_angle: float
     max_torso_lean_angle: float
     reason_codes: List[str] = field(default_factory=list)
+    extended_metrics: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -97,6 +111,7 @@ class RepetitionRecord:
             "min_knee_angle": round(self.min_knee_angle, 2),
             "max_torso_lean_angle": round(self.max_torso_lean_angle, 2),
             "reason_codes": self.reason_codes,
+            "extended_metrics": self.extended_metrics,
         }
 
 

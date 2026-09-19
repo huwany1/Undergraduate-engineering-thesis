@@ -15,6 +15,10 @@ from .contracts import (
 from .evaluators.cycle_evaluator import CycleIntegrityEvaluator
 from .evaluators.depth_evaluator import SquatDepthEvaluator
 from .evaluators.lean_evaluator import TorsoLeanEvaluator
+from .evaluators.valgus_evaluator import KneeValgusEvaluator
+from .evaluators.heel_evaluator import HeelLiftEvaluator
+from .evaluators.pelvic_evaluator import PelvicTiltEvaluator
+from .evaluators.asymmetry_evaluator import BilateralAsymmetryEvaluator
 from .aggregator.arbitrator import AssessmentAggregator
 from .feedback.formatter import FeedbackFormatter
 
@@ -27,6 +31,10 @@ class SquatAssessmentEngine:
         self.cycle_evaluator = CycleIntegrityEvaluator(self.config.cycle_rule)
         self.depth_evaluator = SquatDepthEvaluator(self.config.depth_rule)
         self.lean_evaluator = TorsoLeanEvaluator(self.config.lean_rule)
+        self.valgus_evaluator = KneeValgusEvaluator(self.config.valgus_rule)
+        self.heel_evaluator = HeelLiftEvaluator(self.config.heel_rule)
+        self.pelvic_evaluator = PelvicTiltEvaluator(self.config.pelvic_rule)
+        self.asymmetry_evaluator = BilateralAsymmetryEvaluator(self.config.asymmetry_rule)
         self.aggregator = AssessmentAggregator(self.config.aggregation_policy_version)
         self.formatter = FeedbackFormatter()
 
@@ -34,7 +42,7 @@ class SquatAssessmentEngine:
         """
         对单个动作切片执行完整的四阶段评估流水线：
         1. 门控准入核验 (R-CYCLE-001)
-        2. 质量要点匹配 (R-DEPTH-001, R-LEAN-001)
+        2. 质量要点匹配 (R-DEPTH-001, R-LEAN-001, R-VALGUS-001, R-HEEL-001, R-PELVIC-001, R-ASYM-001)
         3. 双层全序仲裁聚合 (Severity 权重降序 + rule_id 字典序升序)
         4. 非医疗化证据提示生成与安全门禁校验
         """
@@ -66,6 +74,22 @@ class SquatAssessmentEngine:
         lean_violation = self.lean_evaluator.evaluate(rep)
         if lean_violation is not None:
             violations.append(lean_violation)
+
+        valgus_violation = self.valgus_evaluator.evaluate(rep)
+        if valgus_violation is not None:
+            violations.append(valgus_violation)
+
+        heel_violation = self.heel_evaluator.evaluate(rep)
+        if heel_violation is not None:
+            violations.append(heel_violation)
+
+        pelvic_violation = self.pelvic_evaluator.evaluate(rep)
+        if pelvic_violation is not None:
+            violations.append(pelvic_violation)
+
+        asymmetry_violation = self.asymmetry_evaluator.evaluate(rep)
+        if asymmetry_violation is not None:
+            violations.append(asymmetry_violation)
 
         # 3. 确定性全序排序与状态聚合
         sorted_violations = self.aggregator.sort_violations(violations)
