@@ -14,6 +14,8 @@ from typing import Dict, Any, List, Optional
 
 from p4_validation.contracts import TestCaseId
 from p4_validation.golden_assets import GoldenAssetRegistry
+from p2_temporal.contracts import RepetitionRecord
+from p2_temporal.analytics import MultiRepAnalyticsEngine
 from .analyzer import OnlineAnalysisManager, AnalysisTaskStatus
 from .live_manager import LiveStreamManager
 
@@ -129,6 +131,41 @@ class DemoService:
         # 证据化文案生成
         summary_feedback = self._build_feedback_summary(cid, status, reason, min_knee, max_torso)
 
+        # 构造维度三 Multi-Reps 宏观统计与单次切片
+        reps = []
+        if ver_res.get("actual_count", spec.expected_count) > 0 and telemetry:
+            valid_pts = [p for p in telemetry if p.get("is_valid", True)]
+            start_pt = telemetry[0] if telemetry else {}
+            end_pt = telemetry[-1] if telemetry else {}
+            min_pt = min(valid_pts, key=lambda p: p.get("knee_angle", 180.0), default=start_pt)
+            t_start_us = int(start_pt.get("time_s", 0) * 1e6)
+            t_bottom_us = int(min_pt.get("time_s", 0) * 1e6)
+            t_end_us = int(end_pt.get("time_s", 0) * 1e6)
+            dur_ms = ver_res.get("execution_time_ms", (t_end_us - t_start_us) / 1000.0)
+            desc_ms = max(0.0, (t_bottom_us - t_start_us) / 1000.0)
+            asc_ms = max(0.0, (t_end_us - t_bottom_us) / 1000.0)
+            reps.append(
+                RepetitionRecord(
+                    rep_id=1,
+                    is_valid=True,
+                    status="COMPLETED",
+                    start_frame=start_pt.get("frame_index", 0),
+                    bottom_frame=min_pt.get("frame_index", 0),
+                    end_frame=end_pt.get("frame_index", 0),
+                    start_timeline_us=t_start_us,
+                    bottom_timeline_us=t_bottom_us,
+                    end_timeline_us=t_end_us,
+                    duration_ms=dur_ms,
+                    descending_duration_ms=desc_ms,
+                    ascending_duration_ms=asc_ms,
+                    min_knee_angle=min_knee,
+                    max_torso_lean_angle=max_torso,
+                    reason_codes=ver_res.get("actual_reason_codes", [reason]),
+                )
+            )
+
+        multi_rep_summary = MultiRepAnalyticsEngine.analyze(reps).to_dict()
+
         return {
             "case_id": cid,
             "case_name": spec.case_name,
@@ -148,6 +185,8 @@ class DemoService:
             "video_url": f"/api/media/replays/{video_name}" if has_video else None,
             "telemetry": telemetry,
             "keyframes": keyframes,
+            "repetitions": [r.to_dict() for r in reps],
+            "multi_rep_summary": multi_rep_summary,
         }
 
     def get_validation_report(self) -> Dict[str, Any]:
@@ -297,6 +336,32 @@ class DemoService:
                 else:
                     data["summary_feedback"] = f"动作评估就绪，共识别完成深蹲 {data.get('total_reps_completed', 0)} 次。"
 
+            # 确保包含 Multi-Reps 宏观统计与单次切片
+            if "multi_rep_summary" not in data or not data.get("multi_rep_summary"):
+                reps_list = [
+                    RepetitionRecord(
+                        rep_id=r.get("rep_id", 1),
+                        is_valid=r.get("is_valid", True),
+                        status=r.get("status", "COMPLETED"),
+                        start_frame=r.get("start_frame", 0),
+                        bottom_frame=r.get("bottom_frame", 0),
+                        end_frame=r.get("end_frame", 0),
+                        start_timeline_us=r.get("start_timeline_us", 0),
+                        bottom_timeline_us=r.get("bottom_timeline_us", 0),
+                        end_timeline_us=r.get("end_timeline_us", 0),
+                        duration_ms=r.get("duration_ms", 0.0),
+                        descending_duration_ms=r.get("descending_duration_ms", 0.0),
+                        ascending_duration_ms=r.get("ascending_duration_ms", 0.0),
+                        min_knee_angle=r.get("min_knee_angle", 180.0),
+                        max_torso_lean_angle=r.get("max_torso_lean_angle", 0.0),
+                        reason_codes=r.get("reason_codes", []),
+                    )
+                    for r in data.get("repetitions", [])
+                ]
+                data["multi_rep_summary"] = MultiRepAnalyticsEngine.analyze(
+                    reps_list, data.get("assessments", [])
+                ).to_dict()
+
             return data
         except Exception:
             return None
@@ -346,19 +411,46 @@ class DemoService:
         if task_id.startswith("UPLOAD_"):
             task_id = task_id[len("UPLOAD_"):]
 
+        res = None
         task = self.analysis_manager.get_task(task_id)
         if task and task.result:
-            return task.result
+            res = task.result
+        else:
+            # 回退检查持久化摘要 JSON
+            summary_file = self.analysis_manager.summary_dir / f"{task_id}_summary.json"
+            if summary_file.exists():
+                try:
+                    with open(summary_file, "r", encoding="utf-8") as f:
+                        res = json.load(f)
+                except Exception:
+                    pass
 
-        # 回退检查持久化摘要 JSON
-        summary_file = self.analysis_manager.summary_dir / f"{task_id}_summary.json"
-        if summary_file.exists():
-            try:
-                with open(summary_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return None
+        if res and ("multi_rep_summary" not in res or not res.get("multi_rep_summary")):
+            reps_list = [
+                RepetitionRecord(
+                    rep_id=r.get("rep_id", 1),
+                    is_valid=r.get("is_valid", True),
+                    status=r.get("status", "COMPLETED"),
+                    start_frame=r.get("start_frame", 0),
+                    bottom_frame=r.get("bottom_frame", 0),
+                    end_frame=r.get("end_frame", 0),
+                    start_timeline_us=r.get("start_timeline_us", 0),
+                    bottom_timeline_us=r.get("bottom_timeline_us", 0),
+                    end_timeline_us=r.get("end_timeline_us", 0),
+                    duration_ms=r.get("duration_ms", 0.0),
+                    descending_duration_ms=r.get("descending_duration_ms", 0.0),
+                    ascending_duration_ms=r.get("ascending_duration_ms", 0.0),
+                    min_knee_angle=r.get("min_knee_angle", 180.0),
+                    max_torso_lean_angle=r.get("max_torso_lean_angle", 0.0),
+                    reason_codes=r.get("reason_codes", []),
+                )
+                for r in res.get("repetitions", [])
+            ]
+            res["multi_rep_summary"] = MultiRepAnalyticsEngine.analyze(
+                reps_list, res.get("assessments", [])
+            ).to_dict()
+
+        return res
 
     # ---------------- 实时摄像头服务接口 (Live Webcam Stream) ----------------
 

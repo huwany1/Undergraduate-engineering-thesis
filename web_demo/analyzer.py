@@ -28,6 +28,7 @@ from p1_pipeline.quality_gate import QualityGate
 from p1_pipeline.contracts import OverlayStatus
 from p2_temporal.runner import P2TemporalPipeline
 from p2_temporal.contracts import RepetitionRecord
+from p2_temporal.analytics import MultiRepAnalyticsEngine
 from p3_rules.engine import SquatAssessmentEngine
 from p3_rules.contracts import RuleCardConfig, AssessmentStatus
 
@@ -438,6 +439,9 @@ class OnlineAnalysisManager:
                 "max_bilateral_diff_deg": max([r.extended_metrics.get("max_bilateral_diff_deg") for r in completed_reps if r.extended_metrics and r.extended_metrics.get("max_bilateral_diff_deg") is not None], default=None),
             }
 
+            # 计算维度三 Multi-Reps 宏观统计与单次切片
+            multi_rep_summary = MultiRepAnalyticsEngine.analyze(completed_reps, assessments).to_dict()
+
             # 组装与现有 Web 看板完全同构的报告结果
             report_result = {
                 "case_id": f"UPLOAD_{task_id}",
@@ -461,6 +465,8 @@ class OnlineAnalysisManager:
                 "telemetry": telemetry,
                 "keyframes": keyframes,
                 "assessments": [a.to_dict() for a in assessments],
+                "repetitions": [r.to_dict() for r in completed_reps],
+                "multi_rep_summary": multi_rep_summary,
             }
 
             # 写出总结 JSON

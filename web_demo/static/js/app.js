@@ -677,6 +677,41 @@ document.addEventListener('DOMContentLoaded', () => {
   const stepP3 = document.getElementById('step-p3');
   const stepDone = document.getElementById('step-done');
 
+  // 连续动作切片下钻与整组宏观看板 DOM 元素引用
+  const multiRepPanel = document.getElementById('multi-rep-panel');
+  const drilldownModeHint = document.getElementById('drilldown-mode-hint');
+  const btnMacroOverview = document.getElementById('btn-macro-overview');
+  const btnSlowMoToggle = document.getElementById('btn-slowmo-toggle');
+  const btnLoopToggle = document.getElementById('btn-loop-toggle');
+  const btnExitDrilldown = document.getElementById('btn-exit-drilldown');
+  const repsCarouselEl = document.getElementById('reps-carousel');
+
+  const macroDashboardPanel = document.getElementById('macro-dashboard-panel');
+  const macroScopeTag = document.getElementById('macro-scope-tag');
+  const macroPassRateBadge = document.getElementById('macro-pass-rate-badge');
+
+  const consistencyGradeBadge = document.getElementById('consistency-grade-badge');
+  const consistencyScoreNum = document.getElementById('consistency-score-num');
+  const consistencyKneeStd = document.getElementById('consistency-knee-std');
+  const consistencyTorsoStd = document.getElementById('consistency-torso-std');
+  const consistencyDurCv = document.getElementById('consistency-dur-cv');
+  const consistencyDesc = document.getElementById('consistency-desc');
+
+  const fatigueStatusBadge = document.getElementById('fatigue-status-badge');
+  const fatigueSparklineBox = document.getElementById('fatigue-sparkline-box');
+  const fatigueSlopeVal = document.getElementById('fatigue-slope-val');
+  const fatigueDeltaVal = document.getElementById('fatigue-delta-val');
+  const fatigueDesc = document.getElementById('fatigue-desc');
+
+  const tempoRatioBadge = document.getElementById('tempo-ratio-badge');
+  const tempoEccentricBar = document.getElementById('tempo-eccentric-bar');
+  const tempoIsometricBar = document.getElementById('tempo-isometric-bar');
+  const tempoConcentricBar = document.getElementById('tempo-concentric-bar');
+  const tempoEccText = document.getElementById('tempo-ecc-text');
+  const tempoIsoText = document.getElementById('tempo-iso-text');
+  const tempoConText = document.getElementById('tempo-con-text');
+  const tempoDesc = document.getElementById('tempo-desc');
+
   // 全局状态
   let currentMode = 'GOLDEN'; // 'GOLDEN' | 'DATASET' | 'UPLOADS' | 'CAMERA'
   let currentCaseId = 'TC_01_PERFECT_SQUAT';
@@ -684,6 +719,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let casesData = [];
   let datasetDemosData = [];
   let uploadedCasesData = [];
+
+  // 连续动作切片与单次下钻状态
+  let activeRepSlice = null;
+  let isSlowMoEnabled = true;
+  let isSliceLoopEnabled = true;
+  let currentDetail = null;
+  if (btnSlowMoToggle) btnSlowMoToggle.classList.add('active');
 
   // 初始化音效管理器
   const audioManager = new AudioManager();
@@ -949,6 +991,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     renderKeyframes(detail.keyframes || []);
+    renderMultiRepSection(detail);
   }
 
   // 3. 切换选定黄金用例
@@ -1024,6 +1067,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 渲染特征帧快照
     renderKeyframes(detail.keyframes || []);
+    renderMultiRepSection(detail);
   }
 
   function renderKeyframes(keyframes) {
@@ -1052,11 +1096,347 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // 3.1 连续动作切片下钻 (Drill-Down) 与宏观看板逻辑
+  function enterDrillDown(rep) {
+    if (!rep) return;
+    activeRepSlice = rep;
+
+    // 1. 状态提示与操作控制栏
+    if (drilldownModeHint) {
+      drilldownModeHint.textContent = `🎯 正在聚焦第 ${rep.rep_index} 次动作 (${rep.is_acceptable ? '达标' : '待改进'}) · 慢放波谷`;
+    }
+    if (macroScopeTag) {
+      macroScopeTag.textContent = `第 ${rep.rep_index} 次动作局部切片`;
+    }
+    if (btnMacroOverview) btnMacroOverview.classList.remove('active');
+    if (btnExitDrilldown) btnExitDrilldown.style.display = 'inline-flex';
+
+    // 2. 切片卡片高亮
+    if (repsCarouselEl) {
+      repsCarouselEl.querySelectorAll('.rep-slice-card').forEach((card) => {
+        card.classList.toggle('active', Number(card.dataset.repIndex) === rep.rep_index);
+      });
+    }
+
+    // 3. 时序图表区间高亮与波谷标记
+    chart.setRepHighlight(
+      rep.start_time_s,
+      rep.end_time_s,
+      rep.inflection_time_s,
+      `第 ${rep.rep_index} 次动作`
+    );
+
+    // 4. 视频跳转至该切片起点并根据设置开启 0.5x 慢放
+    videoEl.currentTime = rep.start_time_s;
+    videoEl.playbackRate = isSlowMoEnabled ? 0.5 : 1.0;
+    videoEl.play().catch(() => {});
+
+    // 5. 联动更新右侧质检卡片 (显示单次下钻结论)
+    valMinKneeEl.textContent = `${rep.min_knee_angle.toFixed(1)}°`;
+    valMaxTorsoEl.textContent = `${rep.max_torso_angle.toFixed(1)}°`;
+    valExecTimeEl.textContent = `${(rep.duration_s * 1000).toFixed(0)} ms`;
+
+    const isPass = rep.is_acceptable;
+    evalStatusBadge.className = `badge badge-eval ${isPass ? 'acceptable' : 'needs_improvement'}`;
+    evalStatusBadge.textContent = isPass
+      ? `第 ${rep.rep_index} 次：动作规范 (ACCEPTABLE)`
+      : `第 ${rep.rep_index} 次：存在缺陷 (NEEDS_IMPROVEMENT)`;
+
+    const issues = rep.issues || [];
+    const feedback = issues.length > 0
+      ? `单次切片质检告警：${issues.join(', ')}。波谷膝角 ${rep.min_knee_angle.toFixed(1)}°，最大前倾 ${rep.max_torso_angle.toFixed(1)}°。离心下蹲 ${rep.eccentric_s.toFixed(1)}s，波谷停顿 ${rep.isometric_s.toFixed(1)}s，起身向心 ${rep.concentric_s.toFixed(1)}s。`
+      : `第 ${rep.rep_index} 次深蹲质检完全达标！波谷膝角 ${rep.min_knee_angle.toFixed(1)}°，最大前倾 ${rep.max_torso_angle.toFixed(1)}°，肌肉离心/向心收缩节奏平稳。`;
+    evalFeedbackText.textContent = feedback;
+  }
+
+  function exitDrillDown() {
+    activeRepSlice = null;
+
+    if (drilldownModeHint) {
+      drilldownModeHint.textContent = '点击卡片进入单次慢放与波谷聚焦';
+    }
+    if (macroScopeTag) {
+      macroScopeTag.textContent = '全量宏观透视';
+    }
+    if (btnMacroOverview) btnMacroOverview.classList.add('active');
+    if (btnExitDrilldown) btnExitDrilldown.style.display = 'none';
+
+    // 移除卡片激活态
+    if (repsCarouselEl) {
+      repsCarouselEl.querySelectorAll('.rep-slice-card').forEach((card) => {
+        card.classList.remove('active');
+      });
+    }
+
+    // 清除图表高亮高亮遮罩
+    chart.clearRepHighlight();
+
+    // 恢复正常播放速度
+    videoEl.playbackRate = 1.0;
+
+    // 恢复整组用例全局评估指标
+    if (currentDetail) {
+      const isDataset = Boolean(currentDetail.demo_id);
+      if (isDataset) {
+        valMinKneeEl.textContent = `${currentDetail.min_knee_angle ? currentDetail.min_knee_angle.toFixed(1) : 0.0}°`;
+        valMaxTorsoEl.textContent = `${currentDetail.max_torso_angle ? currentDetail.max_torso_angle.toFixed(1) : 0.0}°`;
+        valExecTimeEl.textContent = `${((currentDetail.execution_time_s || 0) * 1000).toFixed(0)} ms`;
+
+        let badgeClass = currentDetail.total_reps_passed > 0 ? 'acceptable' : 'needs_improvement';
+        let statusText = currentDetail.total_reps_passed > 0 ? '动作规范达标 (ACCEPTABLE)' : '存在改进项 (NEEDS_IMPROVEMENT)';
+        if (currentDetail.total_reps_completed === 0) {
+          badgeClass = 'not_evaluated';
+          statusText = '未计次 / 拒绝评估 (NOT_EVALUATED)';
+        }
+        evalStatusBadge.className = `badge badge-eval ${badgeClass}`;
+        evalStatusBadge.textContent = statusText;
+        evalFeedbackText.textContent = currentDetail.summary_feedback || '暂无评估建议';
+      } else {
+        valMinKneeEl.textContent = `${(currentDetail.measured_min_knee_angle || 0).toFixed(1)}°`;
+        valMaxTorsoEl.textContent = `${(currentDetail.measured_max_torso_angle || 0).toFixed(1)}°`;
+        valExecTimeEl.textContent = `${(currentDetail.execution_time_ms || 0).toFixed(1)} ms`;
+
+        let badgeClass = 'acceptable';
+        let statusText = '动作规范 (ACCEPTABLE)';
+        if (currentDetail.actual_status === 'NEEDS_IMPROVEMENT') {
+          badgeClass = 'needs_improvement';
+          statusText = '需要改进 (NEEDS_IMPROVEMENT)';
+        } else if (currentDetail.actual_status === 'NOT_EVALUATED' || currentDetail.actual_status === 'REJECTED') {
+          badgeClass = 'not_evaluated';
+          statusText = '拒绝评估 (NOT_EVALUATED)';
+        }
+        evalStatusBadge.className = `badge badge-eval ${badgeClass}`;
+        evalStatusBadge.textContent = statusText;
+        evalFeedbackText.textContent = currentDetail.summary_feedback || '暂无评估建议';
+      }
+    }
+  }
+
+  function renderMultiRepSection(detail) {
+    currentDetail = detail;
+    exitDrillDown();
+
+    const reps = detail.repetitions || [];
+    const summary = detail.multi_rep_summary || null;
+
+    // 1. 渲染切片横向轮播卡片
+    if (repsCarouselEl) {
+      repsCarouselEl.innerHTML = '';
+      if (!reps || reps.length === 0) {
+        repsCarouselEl.innerHTML = '<div class="empty-hint">当前用例未检测到完整的连续动作切片</div>';
+      } else {
+        reps.forEach((rep) => {
+          const card = document.createElement('div');
+          card.className = `rep-slice-card ${rep.is_acceptable ? 'pass' : 'warn'}`;
+          card.dataset.repIndex = rep.rep_index;
+
+          const isPass = rep.is_acceptable;
+          const statusBadge = isPass
+            ? '<span class="badge badge-eval acceptable">合格</span>'
+            : '<span class="badge badge-eval needs_improvement">待改进</span>';
+
+          let issueHtml = '<div class="rep-tempo-tag">✓ 达标</div>';
+          if (rep.issues && rep.issues.length > 0) {
+            const firstIssue = rep.issues[0];
+            const issueLabel = firstIssue === 'KNEE_ANGLE_TOO_LARGE' ? '下蹲过浅'
+              : firstIssue === 'TORSO_LEAN_EXCESSIVE' ? '前倾过度'
+              : firstIssue === 'ASYMMETRY_DETECTED' ? '左右不对称'
+              : firstIssue === 'BOTTOM_PAUSE_TOO_SHORT' ? '停顿不足'
+              : firstIssue === 'ECCENTRIC_TOO_FAST' ? '下蹲过急'
+              : firstIssue;
+            issueHtml = `<div class="rep-defect-pill" title="${rep.issues.join(', ')}">⚠️ ${issueLabel}</div>`;
+          }
+
+          card.innerHTML = `
+            <div class="rep-card-header-row">
+              <span class="rep-card-num">#${rep.rep_index} 深蹲</span>
+              ${statusBadge}
+            </div>
+            <div class="rep-card-angles">
+              <div class="rep-angle-item">
+                <span>膝角波谷</span>
+                <b class="knee">${rep.min_knee_angle.toFixed(1)}°</b>
+              </div>
+              <div class="rep-angle-item">
+                <span>躯干前倾</span>
+                <b class="torso">${rep.max_torso_angle.toFixed(1)}°</b>
+              </div>
+            </div>
+            <div class="rep-card-footer-row">
+              <span class="rep-tempo-tag">${rep.duration_s.toFixed(2)}s</span>
+              ${issueHtml}
+            </div>
+          `;
+
+          card.addEventListener('click', () => {
+            enterDrillDown(rep);
+          });
+
+          repsCarouselEl.appendChild(card);
+        });
+      }
+    }
+
+    // 2. 渲染整组宏观统计看板
+    if (summary) {
+      if (macroPassRateBadge) {
+        const pct = Math.round((summary.pass_rate || 0) * 100);
+        macroPassRateBadge.textContent = `合格率: ${pct}% (${summary.acceptable_reps}/${summary.total_reps})`;
+        macroPassRateBadge.className = `badge badge-eval ${pct >= 80 ? 'acceptable' : pct >= 50 ? 'needs_improvement' : 'not_evaluated'}`;
+      }
+
+      // 卡片 1: 动作一致性得分
+      const c = summary.consistency;
+      if (c && consistencyScoreNum) {
+        consistencyScoreNum.textContent = c.consistency_score.toFixed(0);
+        if (consistencyGradeBadge) {
+          consistencyGradeBadge.textContent = c.grade;
+          consistencyGradeBadge.className = `badge badge-eval ${c.consistency_score >= 85 ? 'acceptable' : c.consistency_score >= 70 ? 'needs_improvement' : 'not_evaluated'}`;
+        }
+        if (consistencyKneeStd) consistencyKneeStd.textContent = `${c.knee_angle_std.toFixed(1)}°`;
+        if (consistencyTorsoStd) consistencyTorsoStd.textContent = `${c.torso_angle_std.toFixed(1)}°`;
+        if (consistencyDurCv) consistencyDurCv.textContent = `${(c.duration_cv * 100).toFixed(1)}%`;
+        if (consistencyDesc) consistencyDesc.textContent = c.description;
+      }
+
+      // 卡片 2: 下蹲深度衰减趋势 (核心肌群疲劳)
+      const d = summary.depth_decay;
+      if (d && fatigueStatusBadge) {
+        let stLabel = '稳健良好 (STABLE)';
+        let stClass = 'acceptable';
+        if (d.status === 'FATIGUE_DETECTED') {
+          stLabel = '⚠️ 疲劳衰减 (FATIGUE)';
+          stClass = 'needs_improvement';
+        } else if (d.status === 'IMPROVING') {
+          stLabel = '渐入佳境 (IMPROVING)';
+          stClass = 'acceptable';
+        } else if (d.status === 'SINGLE_REP') {
+          stLabel = '单次基准 (SINGLE_REP)';
+          stClass = 'acceptable';
+        }
+
+        fatigueStatusBadge.textContent = stLabel;
+        fatigueStatusBadge.className = `badge badge-eval ${stClass}`;
+
+        if (fatigueSlopeVal) {
+          fatigueSlopeVal.textContent = `${d.slope >= 0 ? '+' : ''}${d.slope.toFixed(2)}°/次`;
+          fatigueSlopeVal.style.color = d.status === 'FATIGUE_DETECTED' ? '#ef4444' : '#10b981';
+        }
+        if (fatigueDeltaVal) {
+          fatigueDeltaVal.textContent = `${d.total_delta_deg >= 0 ? '+' : ''}${d.total_delta_deg.toFixed(1)}°`;
+          fatigueDeltaVal.style.color = d.status === 'FATIGUE_DETECTED' ? '#ef4444' : '#10b981';
+        }
+        if (fatigueDesc) fatigueDesc.textContent = d.description;
+
+        // 渲染疲劳迷你柱状图 Sparklines
+        if (fatigueSparklineBox) {
+          fatigueSparklineBox.innerHTML = '';
+          if (reps.length > 0) {
+            const angles = reps.map((r) => r.min_knee_angle);
+            const minA = Math.min(...angles);
+            const maxA = Math.max(...angles);
+            const span = Math.max(10, maxA - minA);
+
+            reps.forEach((r) => {
+              const col = document.createElement('div');
+              col.className = 'fatigue-bar-col';
+              col.title = `第 ${r.rep_index} 次: 膝角 ${r.min_knee_angle.toFixed(1)}° (${r.is_acceptable ? '合格' : '待改进'})`;
+
+              // 膝角越小表示蹲得越深，柱体归一化在 35% ~ 95%
+              const ratio = 1 - (r.min_knee_angle - minA) / (span || 1);
+              const heightPct = Math.max(25, Math.round(35 + ratio * 60));
+              const barColor = r.is_acceptable ? '#10b981' : '#f43f5e';
+
+              col.innerHTML = `
+                <div class="fatigue-bar-fill" style="height: ${heightPct}%; background: ${barColor};"></div>
+                <span class="fatigue-bar-num">#${r.rep_index}</span>
+              `;
+              col.style.cursor = 'pointer';
+              col.addEventListener('click', () => enterDrillDown(r));
+              fatigueSparklineBox.appendChild(col);
+            });
+          }
+        }
+      }
+
+      // 卡片 3: 动作节奏剖析 (离心/等长/向心)
+      const t = summary.tempo;
+      if (t) {
+        if (tempoRatioBadge) tempoRatioBadge.textContent = t.tempo_ratio || '2-1-1';
+        const ecc = t.mean_eccentric_s || 1.5;
+        const iso = t.mean_isometric_s || 0.5;
+        const con = t.mean_concentric_s || 1.5;
+        const total = Math.max(0.1, ecc + iso + con);
+
+        const eccPct = Math.max(15, (ecc / total) * 100);
+        const isoPct = Math.max(10, (iso / total) * 100);
+        const conPct = Math.max(15, 100 - eccPct - isoPct);
+
+        if (tempoEccentricBar) {
+          tempoEccentricBar.style.width = `${eccPct.toFixed(1)}%`;
+          tempoEccentricBar.textContent = `离心 ${ecc.toFixed(1)}s`;
+        }
+        if (tempoIsometricBar) {
+          tempoIsometricBar.style.width = `${isoPct.toFixed(1)}%`;
+          tempoIsometricBar.textContent = `停顿 ${iso.toFixed(1)}s`;
+        }
+        if (tempoConcentricBar) {
+          tempoConcentricBar.style.width = `${conPct.toFixed(1)}%`;
+          tempoConcentricBar.textContent = `向心 ${con.toFixed(1)}s`;
+        }
+
+        if (tempoEccText) tempoEccText.textContent = `${ecc.toFixed(1)}s`;
+        if (tempoIsoText) tempoIsoText.textContent = `${iso.toFixed(1)}s`;
+        if (tempoConText) tempoConText.textContent = `${con.toFixed(1)}s`;
+        if (tempoDesc) tempoDesc.textContent = t.description;
+      }
+    }
+  }
+
+  // 连续动作控件按钮事件监听
+  if (btnMacroOverview) {
+    btnMacroOverview.addEventListener('click', () => {
+      exitDrillDown();
+    });
+  }
+
+  if (btnExitDrilldown) {
+    btnExitDrilldown.addEventListener('click', () => {
+      exitDrillDown();
+    });
+  }
+
+  if (btnSlowMoToggle) {
+    btnSlowMoToggle.addEventListener('click', () => {
+      isSlowMoEnabled = !isSlowMoEnabled;
+      btnSlowMoToggle.classList.toggle('active', isSlowMoEnabled);
+      if (activeRepSlice) {
+        videoEl.playbackRate = isSlowMoEnabled ? 0.5 : 1.0;
+      }
+    });
+  }
+
+  if (btnLoopToggle) {
+    btnLoopToggle.addEventListener('click', () => {
+      isSliceLoopEnabled = !isSliceLoopEnabled;
+      btnLoopToggle.classList.toggle('active', isSliceLoopEnabled);
+    });
+  }
+
   // 4. 高频平滑姿态骨骼渲染、音画同步与实时双角/计数刷新引擎
   let animFrameId = null;
 
   function syncPlaybackFrame() {
     const curTime = videoEl.currentTime;
+
+    // 单次下钻切片循环回放约束
+    if (activeRepSlice && isSliceLoopEnabled && !videoEl.paused) {
+      if (curTime >= activeRepSlice.end_time_s) {
+        videoEl.currentTime = activeRepSlice.start_time_s;
+      } else if (curTime < activeRepSlice.start_time_s - 0.25) {
+        videoEl.currentTime = activeRepSlice.start_time_s;
+      }
+    }
 
     // 格式化时间与帧序号 (基于 30fps)
     const mins = Math.floor(curTime / 60);
@@ -1184,9 +1564,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   videoEl.addEventListener('ended', () => {
-    stopPlaybackLoop();
-    videoEl.currentTime = 0;
-    syncPlaybackFrame();
+    if (activeRepSlice && isSliceLoopEnabled) {
+      videoEl.currentTime = activeRepSlice.start_time_s;
+      videoEl.play().catch(() => {});
+    } else {
+      stopPlaybackLoop();
+      videoEl.currentTime = 0;
+      syncPlaybackFrame();
+    }
   });
 
   // 5. P4 答辩自包含验证矩阵模态窗口交互
@@ -1516,6 +1901,10 @@ document.addEventListener('DOMContentLoaded', () => {
     videoEl.removeAttribute('src');
     skeletonRenderer.clear();
     chart.clear();
+    exitDrillDown();
+    if (repsCarouselEl) {
+      repsCarouselEl.innerHTML = '<div class="empty-hint">实时摄像头训练中，完成深蹲将即时生成动作切片</div>';
+    }
 
     currentCaseNameEl.textContent = '实时摄像头深蹲动作质量监测与计数';
     currentCaseDescEl.textContent = '接入电脑前置或外置摄像头，单人侧面站立，实时绘制 33 点姿态骨架与关节角度悬浮气泡，自动跟踪 FSM 动作阶段与完成计数。';
@@ -1666,6 +2055,9 @@ document.addEventListener('DOMContentLoaded', () => {
     valExecTimeEl.textContent = `${summary.duration_s} s`;
 
     fetchStatus();
+    if (summary && summary.repetitions && summary.repetitions.length > 0) {
+      renderMultiRepSection(summary);
+    }
 
     caseListEl.innerHTML = `
       <div class="camera-launcher-card" style="border-color: rgba(16, 185, 129, 0.4);">

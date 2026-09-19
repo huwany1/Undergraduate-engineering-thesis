@@ -28,6 +28,7 @@ from p1_pipeline.quality_gate import QualityGate
 from p1_pipeline.contracts import OverlayStatus, PoseStatus, Side
 from p2_temporal.runner import P2TemporalPipeline
 from p2_temporal.contracts import RepetitionEvent, RepetitionRecord, FsmState
+from p2_temporal.analytics import MultiRepAnalyticsEngine
 from p3_rules.engine import SquatAssessmentEngine
 from p3_rules.contracts import AssessmentStatus, RuleCardConfig
 
@@ -225,6 +226,13 @@ class LiveStreamSession:
                 overall_reason = defects[0] if defects else "FORM_DEFECT"
                 summary_guidance = f"本次训练完成 {total_reps} 次深蹲（其中 {acceptable_reps} 次达标）。请注意控制下蹲深度与躯干前倾幅度。"
 
+            completed_records = [
+                r for r in self.temporal_pipeline.counter.records if r.status == "COMPLETED" or r.is_valid
+            ]
+            multi_rep_summary = MultiRepAnalyticsEngine.analyze(
+                completed_records, self.completed_reps_assessment
+            ).to_dict()
+
             summary = {
                 "session_id": self.session_id,
                 "case_id": f"live_{self.session_id}",
@@ -240,6 +248,8 @@ class LiveStreamSession:
                 "camera_view": "LIVE_WEBCAM",
                 "verification_status": "PASS" if overall_status == "ACCEPTABLE" else "EVALUATED",
                 "reps": self.completed_reps_assessment,
+                "repetitions": [r.to_dict() for r in completed_records],
+                "multi_rep_summary": multi_rep_summary,
                 "summary_guidance": summary_guidance,
                 "has_video": False,
                 "video_url": None,

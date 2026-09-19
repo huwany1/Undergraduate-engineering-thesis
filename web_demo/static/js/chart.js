@@ -19,6 +19,7 @@ class TelemetryChart {
     this.tooltipEl = options.tooltipElement || null;
 
     this.padding = { top: 20, right: 30, bottom: 25, left: 40 };
+    this.repHighlight = null; // { startSec, endSec, bottomSec, repLabel }
 
     this.initEvents();
     this.resize();
@@ -49,6 +50,16 @@ class TelemetryChart {
 
   setCurrentTime(timeSec) {
     this.currentTime = timeSec;
+    this.render();
+  }
+
+  setRepHighlight(startSec, endSec, bottomSec = null, repLabel = '') {
+    this.repHighlight = { startSec, endSec, bottomSec, repLabel };
+    this.render();
+  }
+
+  clearRepHighlight() {
+    this.repHighlight = null;
     this.render();
   }
 
@@ -213,6 +224,50 @@ class TelemetryChart {
       ctx.textAlign = 'center';
       ctx.fillText('暂无遥测曲线数据', w / 2, h / 2);
       return;
+    }
+
+    // 2.5 绘制单次切片聚焦高亮背景带 (Drill-Down Focus Band)
+    if (this.repHighlight) {
+      const hStart = Math.max(0, this.repHighlight.startSec);
+      const hEnd = Math.min(this.duration, this.repHighlight.endSec);
+      const xStart = getX(hStart);
+      const xEnd = getX(hEnd);
+      const bandWidth = Math.max(4, xEnd - xStart);
+
+      ctx.save();
+      // 高亮背景光带
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.18)';
+      ctx.fillRect(xStart, p.top, bandWidth, chartH);
+
+      // 边框虚线
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(xStart, p.top, bandWidth, chartH);
+
+      // 顶部切片标签提示
+      ctx.fillStyle = '#60a5fa';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(this.repHighlight.repLabel || '切片聚焦', xStart + 4, p.top + 12);
+
+      // 波谷最低点标记线
+      if (this.repHighlight.bottomSec !== null && this.repHighlight.bottomSec !== undefined) {
+        const xBottom = getX(this.repHighlight.bottomSec);
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(xBottom, p.top);
+        ctx.lineTo(xBottom, p.top + chartH);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f87171';
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.fillText('▼波谷', xBottom, p.top - 4);
+      }
+      ctx.restore();
     }
 
     // 3. 绘制膝关节角度曲线 (Knee Angle - Cyan)

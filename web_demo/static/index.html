@@ -194,6 +194,35 @@
         </div>
       </div>
 
+      <!-- 连续动作切片下钻与选择器 (Multi-Rep Slices Carousel) -->
+      <div class="panel multi-rep-panel" id="multi-rep-panel">
+        <div class="panel-header multi-rep-header">
+          <div class="multi-rep-title-group">
+            <h2>连续动作切片下钻 (Multi-Rep Slices)</h2>
+            <span class="hint-tag" id="drilldown-mode-hint">点击卡片进入单次慢放与波谷聚焦</span>
+          </div>
+          <div class="drilldown-controls">
+            <button class="btn btn-sm btn-outline active" id="btn-macro-overview" title="查看整组多维统计与全量宏观数据">
+              🌐 整组宏观看板
+            </button>
+            <button class="btn btn-sm btn-outline active" id="btn-slowmo-toggle" title="单次下钻时以 0.5x 慢速播放">
+              🐢 0.5x 慢动作
+            </button>
+            <button class="btn btn-sm btn-outline active" id="btn-loop-toggle" title="单次切片循环回放">
+              🔁 单次循环
+            </button>
+            <button class="btn btn-sm btn-danger-outline" id="btn-exit-drilldown" style="display: none;" title="退出单次切片，恢复全视频播放">
+              ✕ 退出下钻
+            </button>
+          </div>
+        </div>
+
+        <!-- 切片卡片横向轮播容器 -->
+        <div class="reps-carousel" id="reps-carousel">
+          <div class="empty-hint">当前用例无动作切片数据</div>
+        </div>
+      </div>
+
       <!-- 中间部分：双通道交互式时序遥测曲线 -->
       <div class="panel chart-panel">
         <div class="panel-header">
@@ -211,6 +240,96 @@
         <div class="canvas-wrapper">
           <canvas id="telemetry-chart"></canvas>
           <div class="chart-tooltip" id="chart-tooltip" style="display: none;"></div>
+        </div>
+      </div>
+
+      <!-- 整组多维生物力学统计看板 (Macro Training Analytics Dashboard) -->
+      <div class="panel macro-dashboard-panel" id="macro-dashboard-panel">
+        <div class="panel-header">
+          <div class="chart-title-group">
+            <h2>整组训练多维生物力学看板 (Set Analytics & Fatigue Dashboard)</h2>
+            <span class="hint-tag" id="macro-scope-tag">全量宏观透视</span>
+          </div>
+          <div class="macro-badge-row">
+            <span class="badge badge-eval acceptable" id="macro-pass-rate-badge">合格率: --%</span>
+          </div>
+        </div>
+
+        <div class="macro-grid">
+          <!-- 卡片 1: 动作一致性得分 -->
+          <div class="macro-card consistency-card">
+            <div class="macro-card-header">
+              <span class="macro-card-title">整组动作一致性得分 (Consistency Score)</span>
+              <span class="badge badge-eval" id="consistency-grade-badge">EXCELLENT</span>
+            </div>
+            <div class="consistency-body">
+              <div class="score-display">
+                <div class="score-circle" id="consistency-score-num">--</div>
+                <div class="score-unit">/ 100</div>
+              </div>
+              <div class="consistency-metrics">
+                <div class="c-metric-row">
+                  <span>下蹲深度方差 (σ):</span>
+                  <b id="consistency-knee-std">--°</b>
+                </div>
+                <div class="c-metric-row">
+                  <span>躯干姿态方差 (σ):</span>
+                  <b id="consistency-torso-std">--°</b>
+                </div>
+                <div class="c-metric-row">
+                  <span>动作时长变异系数 (CV):</span>
+                  <b id="consistency-dur-cv">--%</b>
+                </div>
+              </div>
+            </div>
+            <p class="macro-card-desc" id="consistency-desc">正在评估动作一致性...</p>
+          </div>
+
+          <!-- 卡片 2: 下蹲深度衰减趋势 (核心肌群疲劳) -->
+          <div class="macro-card fatigue-card">
+            <div class="macro-card-header">
+              <span class="macro-card-title">下蹲深度衰减趋势 (Depth Decay & Fatigue)</span>
+              <span class="badge badge-eval" id="fatigue-status-badge">STABLE</span>
+            </div>
+            <div class="fatigue-body">
+              <div class="fatigue-sparkline-box" id="fatigue-sparkline-box">
+                <!-- 动态注入柱状/趋势迷你柱 -->
+              </div>
+              <div class="fatigue-stats-row">
+                <div class="f-stat-item">
+                  <span class="f-stat-label">衰减斜率</span>
+                  <span class="f-stat-val" id="fatigue-slope-val">--°/次</span>
+                </div>
+                <div class="f-stat-item">
+                  <span class="f-stat-label">总深度变动</span>
+                  <span class="f-stat-val" id="fatigue-delta-val">--°</span>
+                </div>
+              </div>
+            </div>
+            <p class="macro-card-desc" id="fatigue-desc">正在分析下蹲深度疲劳趋势...</p>
+          </div>
+
+          <!-- 卡片 3: 动作收缩节奏剖析 (离心/等长/向心) -->
+          <div class="macro-card tempo-card">
+            <div class="macro-card-header">
+              <span class="macro-card-title">动作节奏与收缩配比 (Cadence & Tempo)</span>
+              <span class="badge badge-baseline" id="tempo-ratio-badge">-- - -- - --</span>
+            </div>
+            <div class="tempo-body">
+              <!-- 离心/等长/向心三段比例条 -->
+              <div class="tempo-bar-track">
+                <div class="tempo-segment eccentric" id="tempo-eccentric-bar" style="width: 45%;" title="下蹲离心收缩">离心 --s</div>
+                <div class="tempo-segment isometric" id="tempo-isometric-bar" style="width: 10%;" title="波谷等长停顿">停顿 --s</div>
+                <div class="tempo-segment concentric" id="tempo-concentric-bar" style="width: 45%;" title="起身向心收缩">向心 --s</div>
+              </div>
+              <div class="tempo-legend-row">
+                <span class="t-legend"><span class="t-dot ecc"></span> 离心下蹲: <b id="tempo-ecc-text">--s</b></span>
+                <span class="t-legend"><span class="t-dot iso"></span> 底部停顿: <b id="tempo-iso-text">--s</b></span>
+                <span class="t-legend"><span class="t-dot con"></span> 起身向心: <b id="tempo-con-text">--s</b></span>
+              </div>
+            </div>
+            <p class="macro-card-desc" id="tempo-desc">正在计算动作节奏参数...</p>
+          </div>
         </div>
       </div>
 

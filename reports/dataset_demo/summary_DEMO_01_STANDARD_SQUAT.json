@@ -47,5 +47,120 @@
       "file_path": "reports/dataset_demo/screenshots/DEMO_01_STANDARD_SQUAT_annotated_kf_594_REP_COMPLETED.png"
     }
   ],
-  "telemetry_sidecar": "reports/dataset_demo/sidecars/DEMO_01_STANDARD_SQUAT_frames.jsonl"
+  "telemetry_sidecar": "reports/dataset_demo/sidecars/DEMO_01_STANDARD_SQUAT_frames.jsonl",
+  "repetitions": [
+    {
+      "rep_id": 1,
+      "is_valid": false,
+      "status": "ABORTED",
+      "start_frame": 80,
+      "bottom_frame": 81,
+      "end_frame": 136,
+      "start_timeline_us": 2669333,
+      "bottom_timeline_us": 2702700,
+      "end_timeline_us": 4537867,
+      "duration_ms": 1868.5,
+      "descending_duration_ms": 33.4,
+      "ascending_duration_ms": 1835.2,
+      "min_knee_angle": 129.63,
+      "max_torso_lean_angle": 7.2,
+      "reason_codes": [
+        "ABORTED_INCOMPLETE_DEPTH"
+      ],
+      "extended_metrics": {}
+    },
+    {
+      "rep_id": 2,
+      "is_valid": true,
+      "status": "COMPLETED",
+      "start_frame": 266,
+      "bottom_frame": 319,
+      "end_frame": 594,
+      "start_timeline_us": 8875533,
+      "bottom_timeline_us": 10643967,
+      "end_timeline_us": 19819800,
+      "duration_ms": 10944.3,
+      "descending_duration_ms": 1768.4,
+      "ascending_duration_ms": 9175.8,
+      "min_knee_angle": 49.79,
+      "max_torso_lean_angle": 54.81,
+      "reason_codes": [
+        "NORMAL",
+        "NORMAL"
+      ],
+      "extended_metrics": {}
+    }
+  ],
+  "multi_rep_summary": {
+    "total_completed_reps": 1,
+    "passed_reps": 0,
+    "pass_rate_pct": 0.0,
+    "consistency": {
+      "score": 100.0,
+      "grade": "SINGLE_REP",
+      "knee_std": 0.0,
+      "torso_std": 0.0,
+      "duration_cv": 0.0,
+      "description": "单次基准动作，无法计算多轮方差，基准一致性评定为 100 分。"
+    },
+    "depth_decay": {
+      "status": "SINGLE_REP",
+      "slope_deg_per_rep": 0.0,
+      "total_delta_deg": 0.0,
+      "progression": [
+        49.8
+      ],
+      "description": "单次深蹲波谷膝角 49.8°，宏观衰减趋势需连续完成 ≥2 次深蹲生成。"
+    },
+    "tempo": {
+      "avg_descending_s": 1.77,
+      "avg_pause_s": 0.0,
+      "avg_ascending_s": 9.18,
+      "avg_duration_s": 10.94,
+      "tempo_ratio_str": "1.8s - 0.0s - 9.2s",
+      "eccentric_concentric_ratio": 0.19,
+      "pacing_feedback": "离心下蹲充分受控 (≥1.5s)，肌群张力刺激极佳；起身向心过程阻滞偏慢 (>2.5s)，提示向心爆发力储备不足；离心快于向心，建议有意识地放慢下沉速度 (如下蹲 2 秒、起身 1 秒)。整组平均单次耗时 10.94 秒。"
+    },
+    "slices": [
+      {
+        "rep_id": 2,
+        "is_valid": true,
+        "status": "COMPLETED",
+        "start_frame": 266,
+        "bottom_frame": 319,
+        "end_frame": 594,
+        "start_time_s": 8.876,
+        "bottom_time_s": 10.644,
+        "end_time_s": 19.82,
+        "duration_s": 10.94,
+        "descending_s": 1.77,
+        "pause_s": 0.0,
+        "ascending_s": 9.18,
+        "tempo_str": "1.8s - 0.0s - 9.2s",
+        "min_knee_angle": 49.8,
+        "max_torso_lean_angle": 54.8,
+        "overall_status": "NOT_EVALUATED",
+        "primary_reason_code": "DISCARDED_TIMEOUT",
+        "violations": [
+          {
+            "rule_id": "R-CYCLE-001",
+            "reason_code": "DISCARDED_TIMEOUT",
+            "severity": "REJECT",
+            "evidence": {
+              "feature_name": "duration_ms",
+              "measured_value": 10944.3,
+              "threshold_value": 8000.0,
+              "delta_value": 2944.3,
+              "unit": "ms",
+              "trigger_frame_index": 594,
+              "trigger_timeline_us": 19819800
+            },
+            "feedback_text": "动作耗时过长（历时 10944ms），本次不作动作质量评估。"
+          }
+        ],
+        "feedback_text": "动作耗时过长（历时 10944ms），本次不作动作质量评估。"
+      }
+    ],
+    "macro_feedback": "整组完成深蹲 1 次（达标合格 0 次，达标率 0.0%）。 一致性评定：单次基准动作，无法计算多轮方差，基准一致性评定为 100 分。 耐力与疲劳：单次深蹲波谷膝角 49.8°，宏观衰减趋势需连续完成 ≥2 次深蹲生成。 节奏配比（离心-等长-向心）：1.8s - 0.0s - 9.2s。离心下蹲充分受控 (≥1.5s)，肌群张力刺激极佳；起身向心过程阻滞偏慢 (>2.5s)，提示向心爆发力储备不足；离心快于向心，建议有意识地放慢下沉速度 (如下蹲 2 秒、起身 1 秒)。整组平均单次耗时 10.94 秒。"
+  }
 }

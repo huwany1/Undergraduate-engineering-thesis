@@ -31,5 +31,84 @@
       "file_path": "reports/dataset_demo/screenshots/DEMO_03_FRONT_VIEW_COMPARISON_annotated_kf_179_REP_COMPLETED.png"
     }
   ],
-  "telemetry_sidecar": "reports/dataset_demo/sidecars/DEMO_03_FRONT_VIEW_COMPARISON_frames.jsonl"
+  "telemetry_sidecar": "reports/dataset_demo/sidecars/DEMO_03_FRONT_VIEW_COMPARISON_frames.jsonl",
+  "repetitions": [
+    {
+      "rep_id": 1,
+      "is_valid": true,
+      "status": "COMPLETED",
+      "start_frame": 23,
+      "bottom_frame": 145,
+      "end_frame": 179,
+      "start_timeline_us": 920000,
+      "bottom_timeline_us": 5800000,
+      "end_timeline_us": 7160000,
+      "duration_ms": 6240.0,
+      "descending_duration_ms": 4880.0,
+      "ascending_duration_ms": 1360.0,
+      "min_knee_angle": 41.77,
+      "max_torso_lean_angle": 30.01,
+      "reason_codes": [
+        "NORMAL",
+        "NORMAL"
+      ],
+      "extended_metrics": {}
+    }
+  ],
+  "multi_rep_summary": {
+    "total_completed_reps": 1,
+    "passed_reps": 1,
+    "pass_rate_pct": 100.0,
+    "consistency": {
+      "score": 100.0,
+      "grade": "SINGLE_REP",
+      "knee_std": 0.0,
+      "torso_std": 0.0,
+      "duration_cv": 0.0,
+      "description": "单次基准动作，无法计算多轮方差，基准一致性评定为 100 分。"
+    },
+    "depth_decay": {
+      "status": "SINGLE_REP",
+      "slope_deg_per_rep": 0.0,
+      "total_delta_deg": 0.0,
+      "progression": [
+        41.8
+      ],
+      "description": "单次深蹲波谷膝角 41.8°，宏观衰减趋势需连续完成 ≥2 次深蹲生成。"
+    },
+    "tempo": {
+      "avg_descending_s": 4.88,
+      "avg_pause_s": 0.0,
+      "avg_ascending_s": 1.36,
+      "avg_duration_s": 6.24,
+      "tempo_ratio_str": "4.9s - 0.0s - 1.4s",
+      "eccentric_concentric_ratio": 3.59,
+      "pacing_feedback": "离心下蹲充分受控 (≥1.5s)，肌群张力刺激极佳；离心/向心比例平衡 (离心耗时 ≥ 向心)。整组平均单次耗时 6.24 秒。"
+    },
+    "slices": [
+      {
+        "rep_id": 1,
+        "is_valid": true,
+        "status": "COMPLETED",
+        "start_frame": 23,
+        "bottom_frame": 145,
+        "end_frame": 179,
+        "start_time_s": 0.92,
+        "bottom_time_s": 5.8,
+        "end_time_s": 7.16,
+        "duration_s": 6.24,
+        "descending_s": 4.88,
+        "pause_s": 0.0,
+        "ascending_s": 1.36,
+        "tempo_str": "4.9s - 0.0s - 1.4s",
+        "min_knee_angle": 41.8,
+        "max_torso_lean_angle": 30.0,
+        "overall_status": "ACCEPTABLE",
+        "primary_reason_code": "ACCEPTABLE",
+        "violations": [],
+        "feedback_text": "动作规范，下蹲深度充分，躯干姿态稳定。"
+      }
+    ],
+    "macro_feedback": "整组完成深蹲 1 次（达标合格 1 次，达标率 100.0%）。 一致性评定：单次基准动作，无法计算多轮方差，基准一致性评定为 100 分。 耐力与疲劳：单次深蹲波谷膝角 41.8°，宏观衰减趋势需连续完成 ≥2 次深蹲生成。 节奏配比（离心-等长-向心）：4.9s - 0.0s - 1.4s。离心下蹲充分受控 (≥1.5s)，肌群张力刺激极佳；离心/向心比例平衡 (离心耗时 ≥ 向心)。整组平均单次耗时 6.24 秒。"
+  }
 }

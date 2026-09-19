@@ -1247,3 +1247,432 @@ body {
   cursor: pointer;
 }
 
+/* ==========================================================================
+   维度三: Multi-Reps 动作切片轮播、慢放下钻与整组宏观看板样式
+   ========================================================================== */
+
+/* 1. 切片轮播与控制面板 */
+.multi-rep-panel {
+  margin-top: 14px;
+}
+
+.multi-rep-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.multi-rep-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drilldown-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-outline {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-outline.active {
+  background: rgba(6, 182, 212, 0.2);
+  color: #38bdf8;
+  border-color: rgba(6, 182, 212, 0.5);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+}
+
+.btn-danger-outline {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.35);
+}
+
+.btn-danger-outline:hover {
+  background: rgba(244, 63, 94, 0.25);
+  color: #fff;
+}
+
+/* 切片卡片横向轮播容器 */
+.reps-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 8px 2px 14px 2px;
+  scroll-behavior: smooth;
+}
+
+.reps-carousel::-webkit-scrollbar {
+  height: 6px;
+}
+
+.reps-carousel::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+}
+
+.reps-carousel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+
+.reps-carousel::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.5);
+}
+
+/* 单个 Rep 切片卡片 */
+.rep-slice-card {
+  flex: 0 0 210px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.rep-slice-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(6, 182, 212, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.rep-slice-card.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(99, 102, 241, 0.15));
+  border-color: #06b6d4;
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.35), inset 0 0 10px rgba(6, 182, 212, 0.1);
+  transform: translateY(-3px);
+}
+
+.rep-slice-card.active::before {
+  content: "FOCUS 下钻中";
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #06b6d4;
+  color: #04131d;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-bottom-left-radius: 6px;
+  letter-spacing: 0.05em;
+}
+
+.rep-card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rep-card-num {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rep-card-angles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+}
+
+.rep-angle-item span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.7rem;
+}
+
+.rep-angle-item b {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.rep-angle-item b.knee {
+  color: var(--knee-color);
+}
+
+.rep-angle-item b.torso {
+  color: var(--torso-color);
+}
+
+.rep-card-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.rep-tempo-tag {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: #94a3b8;
+}
+
+.rep-defect-pill {
+  font-size: 0.68rem;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+/* 2. 整组多维生物力学统计看板 */
+.macro-dashboard-panel {
+  margin-top: 14px;
+}
+
+.macro-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.macro-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  transition: var(--transition-fast);
+}
+
+.macro-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.macro-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.macro-card-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.macro-card-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-primary);
+}
+
+/* 一致性得分卡片 */
+.consistency-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.score-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+}
+
+.score-circle {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #38bdf8;
+  line-height: 1;
+  text-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
+  font-family: monospace;
+}
+
+.score-unit {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.consistency-metrics {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+}
+
+.c-metric-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+}
+
+.c-metric-row b {
+  color: #f1f5f9;
+}
+
+/* 疲劳衰减趋势卡片 */
+.fatigue-sparkline-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 52px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.fatigue-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.fatigue-bar-fill {
+  width: 100%;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+  transition: height 0.3s ease;
+  min-height: 6px;
+}
+
+.fatigue-bar-num {
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+
+.fatigue-stats-row {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 8px;
+  font-size: 0.75rem;
+}
+
+.f-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.f-stat-label {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+}
+
+.f-stat-val {
+  color: #f59e0b;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+/* 节奏收缩卡片 */
+.tempo-bar-track {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tempo-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #ffffff;
+  transition: width 0.3s ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tempo-segment.eccentric {
+  background: linear-gradient(90deg, #0284c7, #06b6d4);
+}
+
+.tempo-segment.isometric {
+  background: linear-gradient(90deg, #8b5cf6, #a855f7);
+}
+
+.tempo-segment.concentric {
+  background: linear-gradient(90deg, #059669, #10b981);
+}
+
+.tempo-legend-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.t-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.t-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.t-dot.ecc { background: #06b6d4; }
+.t-dot.iso { background: #8b5cf6; }
+.t-dot.con { background: #10b981; }
+
+.t-legend b {
+  color: #f1f5f9;
+}
+

@@ -202,5 +202,400 @@
       "file_path": "reports/dataset_demo/screenshots/DEMO_02_DEEP_SQUAT_annotated_kf_813_REP_COMPLETED.png"
     }
   ],
-  "telemetry_sidecar": "reports/dataset_demo/sidecars/DEMO_02_DEEP_SQUAT_frames.jsonl"
+  "telemetry_sidecar": "reports/dataset_demo/sidecars/DEMO_02_DEEP_SQUAT_frames.jsonl",
+  "repetitions": [
+    {
+      "rep_id": 1,
+      "is_valid": true,
+      "status": "COMPLETED",
+      "start_frame": 28,
+      "bottom_frame": 66,
+      "end_frame": 98,
+      "start_timeline_us": 1120000,
+      "bottom_timeline_us": 2640000,
+      "end_timeline_us": 3920000,
+      "duration_ms": 2800.0,
+      "descending_duration_ms": 1520.0,
+      "ascending_duration_ms": 1280.0,
+      "min_knee_angle": 62.71,
+      "max_torso_lean_angle": 53.49,
+      "reason_codes": [
+        "NORMAL",
+        "NORMAL"
+      ],
+      "extended_metrics": {}
+    },
+    {
+      "rep_id": 2,
+      "is_valid": true,
+      "status": "COMPLETED",
+      "start_frame": 143,
+      "bottom_frame": 177,
+      "end_frame": 209,
+      "start_timeline_us": 5720000,
+      "bottom_timeline_us": 7080000,
+      "end_timeline_us": 8360000,
+      "duration_ms": 2640.0,
+      "descending_duration_ms": 1360.0,
+      "ascending_duration_ms": 1280.0,
+      "min_knee_angle": 64.46,
+      "max_torso_lean_angle": 52.09,
+      "reason_codes": [
+        "NORMAL",
+        "NORMAL"
+      ],
+      "extended_metrics": {}
+    },
+    {
+      "rep_id": 3,
+      "is_valid": true,
+      "status": "COMPLETED",
+      "start_frame": 270,
+      "bottom_frame": 303,
+      "end_frame": 339,
+      "start_timeline_us": 10800000,
+      "bottom_timeline_us": 12120000,
+      "end_timeline_us": 13560000,
+      "duration_ms": 2760.0,
+      "descending_duration_ms": 1320.0,
+      "ascending_duration_ms": 1440.0,
+      "min_knee_angle": 67.33,
+      "max_torso_lean_angle": 54.19,
+      "reason_codes": [
+        "NORMAL",
+        "NORMAL"
+      ],
+      "extended_metrics": {}
+    },
+    {
+      "rep_id": 4,
+      "is_valid": true,
+      "status": "COMPLETED",
+      "start_frame": 400,
+      "bottom_frame": 433,
+      "end_frame": 469,
+      "start_timeline_us": 16000000,
+      "bottom_timeline_us": 17320000,
+      "end_timeline_us": 18760000,
+      "duration_ms": 2760.0,
+      "descending_duration_ms": 1320.0,
+      "ascending_duration_ms": 1440.0,
+      "min_knee_angle": 66.59,
+      "max_torso_lean_angle": 58.12,
+      "reason_codes": [
+        "NORMAL",
+        "NORMAL"
+      ],
+      "extended_metrics": {}
+    },
+    {
+      "rep_id": 5,
+      "is_valid": true,
+      "status": "COMPLETED",
+      "start_frame": 552,
+      "bottom_frame": 586,
+      "end_frame": 625,
+      "start_timeline_us": 22080000,
+      "bottom_timeline_us": 23440000,
+      "end_timeline_us": 25000000,
+      "duration_ms": 2920.0,
+      "descending_duration_ms": 1360.0,
+      "ascending_duration_ms": 1560.0,
+      "min_knee_angle": 67.51,
+      "max_torso_lean_angle": 55.26,
+      "reason_codes": [
+        "NORMAL",
+        "NORMAL"
+      ],
+      "extended_metrics": {}
+    },
+    {
+      "rep_id": 6,
+      "is_valid": true,
+      "status": "COMPLETED",
+      "start_frame": 727,
+      "bottom_frame": 767,
+      "end_frame": 813,
+      "start_timeline_us": 29080000,
+      "bottom_timeline_us": 30680000,
+      "end_timeline_us": 32520000,
+      "duration_ms": 3440.0,
+      "descending_duration_ms": 1600.0,
+      "ascending_duration_ms": 1840.0,
+      "min_knee_angle": 65.38,
+      "max_torso_lean_angle": 56.88,
+      "reason_codes": [
+        "NORMAL",
+        "NORMAL"
+      ],
+      "extended_metrics": {}
+    }
+  ],
+  "multi_rep_summary": {
+    "total_completed_reps": 6,
+    "passed_reps": 0,
+    "pass_rate_pct": 0.0,
+    "consistency": {
+      "score": 90.0,
+      "grade": "EXCELLENT",
+      "knee_std": 1.86,
+      "torso_std": 2.22,
+      "duration_cv": 0.099,
+      "description": "整组动作一致性极高 (得分 90.0)，下蹲深度离散度仅 ±1.9°，节奏稳定。"
+    },
+    "depth_decay": {
+      "status": "FATIGUE_DETECTED",
+      "slope_deg_per_rep": 0.62,
+      "total_delta_deg": 2.67,
+      "progression": [
+        62.7,
+        64.5,
+        67.3,
+        66.6,
+        67.5,
+        65.4
+      ],
+      "description": "⚠️ 检测到下蹲深度衰减趋势：波谷膝角逐次变浅 (斜率 +0.62°/次，总衰减 +2.7°，从 #1 次 62.7° 变浅至 #6 次 65.4°)。提示大腿股四头肌与臀大肌出现疲劳代偿，建议适度休整或调整组间负荷。"
+    },
+    "tempo": {
+      "avg_descending_s": 1.41,
+      "avg_pause_s": 0.0,
+      "avg_ascending_s": 1.47,
+      "avg_duration_s": 2.89,
+      "tempo_ratio_str": "1.4s - 0.0s - 1.5s",
+      "eccentric_concentric_ratio": 0.96,
+      "pacing_feedback": "下蹲耗时正常 (1.4s)；离心快于向心，建议有意识地放慢下沉速度 (如下蹲 2 秒、起身 1 秒)。整组平均单次耗时 2.89 秒。"
+    },
+    "slices": [
+      {
+        "rep_id": 1,
+        "is_valid": true,
+        "status": "COMPLETED",
+        "start_frame": 28,
+        "bottom_frame": 66,
+        "end_frame": 98,
+        "start_time_s": 1.12,
+        "bottom_time_s": 2.64,
+        "end_time_s": 3.92,
+        "duration_s": 2.8,
+        "descending_s": 1.52,
+        "pause_s": 0.0,
+        "ascending_s": 1.28,
+        "tempo_str": "1.5s - 0.0s - 1.3s",
+        "min_knee_angle": 62.7,
+        "max_torso_lean_angle": 53.5,
+        "overall_status": "NEEDS_IMPROVEMENT",
+        "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+        "violations": [
+          {
+            "rule_id": "R-LEAN-001",
+            "reason_code": "EXCESSIVE_TORSO_LEAN",
+            "severity": "WARNING_SEVERE",
+            "evidence": {
+              "feature_name": "max_torso_lean_angle",
+              "measured_value": 53.49,
+              "threshold_value": 45.0,
+              "delta_value": 8.49,
+              "unit": "deg",
+              "trigger_frame_index": 66,
+              "trigger_timeline_us": 2640000
+            },
+            "feedback_text": "提示：躯干过度前倾（测得前倾角 53.5°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+          }
+        ],
+        "feedback_text": "提示：躯干过度前倾（测得前倾角 53.5°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+      },
+      {
+        "rep_id": 2,
+        "is_valid": true,
+        "status": "COMPLETED",
+        "start_frame": 143,
+        "bottom_frame": 177,
+        "end_frame": 209,
+        "start_time_s": 5.72,
+        "bottom_time_s": 7.08,
+        "end_time_s": 8.36,
+        "duration_s": 2.64,
+        "descending_s": 1.36,
+        "pause_s": 0.0,
+        "ascending_s": 1.28,
+        "tempo_str": "1.4s - 0.0s - 1.3s",
+        "min_knee_angle": 64.5,
+        "max_torso_lean_angle": 52.1,
+        "overall_status": "NEEDS_IMPROVEMENT",
+        "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+        "violations": [
+          {
+            "rule_id": "R-LEAN-001",
+            "reason_code": "EXCESSIVE_TORSO_LEAN",
+            "severity": "WARNING_SEVERE",
+            "evidence": {
+              "feature_name": "max_torso_lean_angle",
+              "measured_value": 52.09,
+              "threshold_value": 45.0,
+              "delta_value": 7.09,
+              "unit": "deg",
+              "trigger_frame_index": 177,
+              "trigger_timeline_us": 7080000
+            },
+            "feedback_text": "提示：躯干过度前倾（测得前倾角 52.1°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+          }
+        ],
+        "feedback_text": "提示：躯干过度前倾（测得前倾角 52.1°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+      },
+      {
+        "rep_id": 3,
+        "is_valid": true,
+        "status": "COMPLETED",
+        "start_frame": 270,
+        "bottom_frame": 303,
+        "end_frame": 339,
+        "start_time_s": 10.8,
+        "bottom_time_s": 12.12,
+        "end_time_s": 13.56,
+        "duration_s": 2.76,
+        "descending_s": 1.32,
+        "pause_s": 0.0,
+        "ascending_s": 1.44,
+        "tempo_str": "1.3s - 0.0s - 1.4s",
+        "min_knee_angle": 67.3,
+        "max_torso_lean_angle": 54.2,
+        "overall_status": "NEEDS_IMPROVEMENT",
+        "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+        "violations": [
+          {
+            "rule_id": "R-LEAN-001",
+            "reason_code": "EXCESSIVE_TORSO_LEAN",
+            "severity": "WARNING_SEVERE",
+            "evidence": {
+              "feature_name": "max_torso_lean_angle",
+              "measured_value": 54.19,
+              "threshold_value": 45.0,
+              "delta_value": 9.19,
+              "unit": "deg",
+              "trigger_frame_index": 303,
+              "trigger_timeline_us": 12120000
+            },
+            "feedback_text": "提示：躯干过度前倾（测得前倾角 54.2°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+          }
+        ],
+        "feedback_text": "提示：躯干过度前倾（测得前倾角 54.2°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+      },
+      {
+        "rep_id": 4,
+        "is_valid": true,
+        "status": "COMPLETED",
+        "start_frame": 400,
+        "bottom_frame": 433,
+        "end_frame": 469,
+        "start_time_s": 16.0,
+        "bottom_time_s": 17.32,
+        "end_time_s": 18.76,
+        "duration_s": 2.76,
+        "descending_s": 1.32,
+        "pause_s": 0.0,
+        "ascending_s": 1.44,
+        "tempo_str": "1.3s - 0.0s - 1.4s",
+        "min_knee_angle": 66.6,
+        "max_torso_lean_angle": 58.1,
+        "overall_status": "NEEDS_IMPROVEMENT",
+        "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+        "violations": [
+          {
+            "rule_id": "R-LEAN-001",
+            "reason_code": "EXCESSIVE_TORSO_LEAN",
+            "severity": "WARNING_SEVERE",
+            "evidence": {
+              "feature_name": "max_torso_lean_angle",
+              "measured_value": 58.12,
+              "threshold_value": 45.0,
+              "delta_value": 13.12,
+              "unit": "deg",
+              "trigger_frame_index": 433,
+              "trigger_timeline_us": 17320000
+            },
+            "feedback_text": "提示：躯干过度前倾（测得前倾角 58.1°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+          }
+        ],
+        "feedback_text": "提示：躯干过度前倾（测得前倾角 58.1°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+      },
+      {
+        "rep_id": 5,
+        "is_valid": true,
+        "status": "COMPLETED",
+        "start_frame": 552,
+        "bottom_frame": 586,
+        "end_frame": 625,
+        "start_time_s": 22.08,
+        "bottom_time_s": 23.44,
+        "end_time_s": 25.0,
+        "duration_s": 2.92,
+        "descending_s": 1.36,
+        "pause_s": 0.0,
+        "ascending_s": 1.56,
+        "tempo_str": "1.4s - 0.0s - 1.6s",
+        "min_knee_angle": 67.5,
+        "max_torso_lean_angle": 55.3,
+        "overall_status": "NEEDS_IMPROVEMENT",
+        "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+        "violations": [
+          {
+            "rule_id": "R-LEAN-001",
+            "reason_code": "EXCESSIVE_TORSO_LEAN",
+            "severity": "WARNING_SEVERE",
+            "evidence": {
+              "feature_name": "max_torso_lean_angle",
+              "measured_value": 55.26,
+              "threshold_value": 45.0,
+              "delta_value": 10.26,
+              "unit": "deg",
+              "trigger_frame_index": 586,
+              "trigger_timeline_us": 23440000
+            },
+            "feedback_text": "提示：躯干过度前倾（测得前倾角 55.3°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+          }
+        ],
+        "feedback_text": "提示：躯干过度前倾（测得前倾角 55.3°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+      },
+      {
+        "rep_id": 6,
+        "is_valid": true,
+        "status": "COMPLETED",
+        "start_frame": 727,
+        "bottom_frame": 767,
+        "end_frame": 813,
+        "start_time_s": 29.08,
+        "bottom_time_s": 30.68,
+        "end_time_s": 32.52,
+        "duration_s": 3.44,
+        "descending_s": 1.6,
+        "pause_s": 0.0,
+        "ascending_s": 1.84,
+        "tempo_str": "1.6s - 0.0s - 1.8s",
+        "min_knee_angle": 65.4,
+        "max_torso_lean_angle": 56.9,
+        "overall_status": "NEEDS_IMPROVEMENT",
+        "primary_reason_code": "EXCESSIVE_TORSO_LEAN",
+        "violations": [
+          {
+            "rule_id": "R-LEAN-001",
+            "reason_code": "EXCESSIVE_TORSO_LEAN",
+            "severity": "WARNING_SEVERE",
+            "evidence": {
+              "feature_name": "max_torso_lean_angle",
+              "measured_value": 56.88,
+              "threshold_value": 45.0,
+              "delta_value": 11.88,
+              "unit": "deg",
+              "trigger_frame_index": 767,
+              "trigger_timeline_us": 30680000
+            },
+            "feedback_text": "提示：躯干过度前倾（测得前倾角 56.9°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+          }
+        ],
+        "feedback_text": "提示：躯干过度前倾（测得前倾角 56.9°，参考标准 ≤ 45.0°），建议保持抬头挺胸，目视前方，避免上身过多下压。"
+      }
+    ],
+    "macro_feedback": "整组完成深蹲 6 次（达标合格 0 次，达标率 0.0%）。 一致性评定：整组动作一致性极高 (得分 90.0)，下蹲深度离散度仅 ±1.9°，节奏稳定。 耐力与疲劳：⚠️ 检测到下蹲深度衰减趋势：波谷膝角逐次变浅 (斜率 +0.62°/次，总衰减 +2.7°，从 #1 次 62.7° 变浅至 #6 次 65.4°)。提示大腿股四头肌与臀大肌出现疲劳代偿，建议适度休整或调整组间负荷。 节奏配比（离心-等长-向心）：1.4s - 0.0s - 1.5s。下蹲耗时正常 (1.4s)；离心快于向心，建议有意识地放慢下沉速度 (如下蹲 2 秒、起身 1 秒)。整组平均单次耗时 2.89 秒。"
+  }
 }

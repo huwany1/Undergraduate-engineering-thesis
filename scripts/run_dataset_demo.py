@@ -47,6 +47,7 @@ from p1_pipeline.engine.tasks_adapter import MediaPipeTasksPoseEngine
 from p1_pipeline.contracts import TimeBasis
 from p2_temporal.runner import P2TemporalPipeline
 from p2_temporal.contracts import RepetitionRecord
+from p2_temporal.analytics import MultiRepAnalyticsEngine
 from p3_rules.engine import SquatAssessmentEngine
 from p3_rules.contracts import RuleCardConfig, AssessmentStatus
 
@@ -341,6 +342,9 @@ def run_single_dataset_demo(
 
     total_time = time.perf_counter() - start_time
 
+    # 计算维度三 Multi-Reps 宏观统计与单次切片
+    multi_rep_summary = MultiRepAnalyticsEngine.analyze(completed_reps, assessments).to_dict()
+
     # 整理结果字典
     result = {
         "demo_id": demo_id,
@@ -357,6 +361,8 @@ def run_single_dataset_demo(
         "max_torso_angle": round(max_torso_across_reps, 1),
         "execution_time_s": round(total_time, 2),
         "assessments": [a.to_dict() for a in assessments],
+        "repetitions": [r.to_dict() for r in completed_reps],
+        "multi_rep_summary": multi_rep_summary,
         "keyframes": keyframes,
         "telemetry_sidecar": safe_rel_path(out_sidecar_path),
     }
