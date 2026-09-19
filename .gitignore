@@ -35,16 +35,30 @@ requirements-export.txt
 .idea/
 .vscode/
 .codemoss/
+.cursor/
+.gemini/
+.vs/
+*.sublime-workspace
+*.sublime-project
 
 # OS metadata and temporary files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 *.log
 *.tmp
 *.bak
+*.swp
+*.swo
+*~
 ~$*
+~*.tmp
 
 # Local application state
 .matplotlib/
@@ -59,19 +73,31 @@ $RECYCLE.BIN/
 /yolov8-deepsort/result*.mp4
 **/runs/
 
-# P0 Data Governance: S1 raw sensitive and S2 derived feature data
+# P0 Data Governance: S1 raw sensitive, S2 derived feature data, S3 authorized evidence
 /data/S1_raw_sensitive/*
 !/data/S1_raw_sensitive/.gitkeep
 /data/S2_derived_features/*
 !/data/S2_derived_features/.gitkeep
+/data/S3_authorized_evidence/*
+!/data/S3_authorized_evidence/.gitkeep
 # Participant identities and raw private consent records
 *_identity_mapping.*
 *_private_consent.*
 
-# P1 Model Assets
+# P1 Model Assets & Intermediate Formats
 models/
 *.task
+*.onnx
+*.engine
+*.tflite
+*.safetensors
+*.ckpt
+*.h5
 
-# User Uploaded Dynamic Media
+# User Uploaded Dynamic Media & Telemetry Runtime Outputs
 /reports/uploaded_demo/*
 !/reports/uploaded_demo/.gitkeep
+/reports/uploaded_demo/**
+!/reports/uploaded_demo/
+!/reports/uploaded_demo/.gitkeep
+
