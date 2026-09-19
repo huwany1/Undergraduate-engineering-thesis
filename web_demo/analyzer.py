@@ -294,6 +294,12 @@ class OnlineAnalysisManager:
                 kine = p2_res.kinematics
                 fsm_val = p2_res.fsm_state.value if hasattr(p2_res.fsm_state, "value") else str(p2_res.fsm_state)
                 event_val = p2_res.event.value if hasattr(p2_res.event, "value") else str(p2_res.event)
+                landmarks_data = []
+                if pose_res.landmarks_2d:
+                    landmarks_data = [
+                        [round(p.x, 4), round(p.y, 4), round(p.visibility if p.visibility is not None else 1.0, 2)]
+                        for p in pose_res.landmarks_2d
+                    ]
 
                 telemetry.append({
                     "frame_index": frame_idx,
@@ -306,6 +312,7 @@ class OnlineAnalysisManager:
                     "event": event_val,
                     "is_valid": kine.is_valid,
                     "count": p2_res.cumulative_rep_count,
+                    "landmarks": landmarks_data,
                 })
 
                 # 记录全局最低膝角候选

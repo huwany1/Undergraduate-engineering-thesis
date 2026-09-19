@@ -8,10 +8,261 @@
  * 4. 支持键盘快捷键 (空格播放/暂停, 左右方向键单帧步进)。
  */
 
+/**
+ * 实时姿态骨骼与生物力学角度渲染器 (Skeleton & Biomechanics Overlay Renderer)
+ * 职责：
+ * 1. 监听视频画幅与信箱黑边 (Letterbox/Pillarbox)，建立归一化坐标精准映射；
+ * 2. 绘制 MediaPipe Pose 33 关键点骨骼拓扑连线与多色关节点高亮；
+ * 3. 动态计算优势侧膝关节与躯干位置，原位渲染实测屈曲角/前倾角悬浮胶囊；
+ * 4. 适配 HiDPI 屏幕 Retina 缩放，保障 60 FPS 极速矢量渲染。
+ */
+class SkeletonRenderer {
+  constructor(canvas, video, container) {
+    this.canvas = canvas;
+    this.ctx = canvas ? canvas.getContext('2d') : null;
+    this.video = video;
+    this.container = container;
+    this.isEnabled = true;
+    this.displayWidth = 0;
+    this.displayHeight = 0;
+
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+
+    // MediaPipe Pose 33 关键点拓扑连接定义
+    this.connections = [
+      // 头部五官
+      [0, 1], [1, 2], [2, 3], [3, 7],
+      [0, 4], [4, 5], [5, 6], [6, 8],
+      [9, 10],
+      // 躯干与肩髋
+      [11, 12], [11, 23], [12, 24], [23, 24],
+      // 左上肢
+      [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+      // 右上肢
+      [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+      // 左下肢
+      [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],
+      // 右下肢
+      [24, 26], [26, 28], [28, 30], [30, 32], [28, 32],
+    ];
+  }
+
+  resize() {
+    if (!this.container || !this.canvas || !this.ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = this.container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    this.displayWidth = rect.width;
+    this.displayHeight = rect.height;
+    this.canvas.width = Math.round(rect.width * dpr);
+    this.canvas.height = Math.round(rect.height * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  clear() {
+    if (!this.ctx) return;
+    this.ctx.clearRect(0, 0, this.displayWidth, this.displayHeight);
+  }
+
+  getVideoContentRect() {
+    const vWidth = (this.video && this.video.videoWidth) ? this.video.videoWidth : 1920;
+    const vHeight = (this.video && this.video.videoHeight) ? this.video.videoHeight : 1080;
+    const cWidth = this.displayWidth;
+    const cHeight = this.displayHeight;
+    if (!cWidth || !cHeight) return { x: 0, y: 0, width: 0, height: 0 };
+
+    const vAspect = vWidth / vHeight;
+    const cAspect = cWidth / cHeight;
+    let renderWidth, renderHeight, offsetX, offsetY;
+
+    if (vAspect > cAspect) {
+      renderWidth = cWidth;
+      renderHeight = cWidth / vAspect;
+      offsetX = 0;
+      offsetY = (cHeight - renderHeight) / 2;
+    } else {
+      renderHeight = cHeight;
+      renderWidth = cHeight * vAspect;
+      offsetX = (cWidth - renderWidth) / 2;
+      offsetY = 0;
+    }
+    return { x: offsetX, y: offsetY, width: renderWidth, height: renderHeight };
+  }
+
+  render(telemetryPoint) {
+    this.clear();
+    if (!this.isEnabled || !telemetryPoint || !this.ctx) return;
+
+    const landmarks = telemetryPoint.landmarks;
+    const hasLandmarks = Array.isArray(landmarks) && landmarks.length >= 33;
+    const rect = this.getVideoContentRect();
+
+    if (hasLandmarks && telemetryPoint.is_valid) {
+      this.drawSkeleton(landmarks, rect, telemetryPoint);
+    }
+
+    // 绘制画面内动态角度悬浮气泡 (若有骨骼点则贴合关节，若无则附着在右上角)
+    this.drawAngleBadges(landmarks, rect, telemetryPoint, hasLandmarks);
+  }
+
+  drawSkeleton(landmarks, rect, telemetryPoint) {
+    const ctx = this.ctx;
+    const pts = landmarks.map((p) => ({
+      x: rect.x + p[0] * rect.width,
+      y: rect.y + p[1] * rect.height,
+      vis: p[2] !== undefined ? p[2] : 1.0,
+    }));
+
+    // 1. 绘制骨骼连线
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    this.connections.forEach(([i, j]) => {
+      const p1 = pts[i];
+      const p2 = pts[j];
+      if (!p1 || !p2 || p1.vis < 0.25 || p2.vis < 0.25) return;
+
+      // 区分躯干、四肢配色
+      let strokeColor = 'rgba(59, 130, 246, 0.9)'; // 躯干科技蓝
+      if ((i >= 23 && i <= 32) || (j >= 23 && j <= 32)) {
+        // 下肢腿部用翡翠绿/青色
+        strokeColor = 'rgba(16, 185, 129, 0.95)';
+      } else if ((i >= 11 && i <= 16) || (j >= 11 && j <= 16)) {
+        // 上肢手臂用天蓝
+        strokeColor = 'rgba(56, 189, 248, 0.9)';
+      }
+
+      ctx.strokeStyle = strokeColor;
+      ctx.shadowColor = strokeColor;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    });
+
+    ctx.shadowBlur = 0;
+
+    // 2. 绘制关节点圆点
+    pts.forEach((pt, idx) => {
+      if (pt.vis < 0.25) return;
+      const isHead = idx < 11;
+      const radius = isHead ? 2.5 : 4.5;
+
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = (idx === 25 || idx === 26) ? '#38bdf8' : '#0284c7';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+
+    // 3. 膝关节动态指示光圈
+    const leftKnee = pts[25];
+    const rightKnee = pts[26];
+    const targetKnee = (rightKnee && rightKnee.vis > (leftKnee ? leftKnee.vis : 0)) ? rightKnee : leftKnee;
+
+    if (targetKnee && targetKnee.vis >= 0.25) {
+      ctx.beginPath();
+      ctx.arc(targetKnee.x, targetKnee.y, 11, 0, Math.PI * 2);
+      const isPass = telemetryPoint.knee_angle <= 105.0;
+      ctx.fillStyle = isPass ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.35)';
+      ctx.fill();
+      ctx.strokeStyle = isPass ? '#10b981' : '#38bdf8';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  drawAngleBadges(landmarks, rect, telemetryPoint, hasLandmarks) {
+    const ctx = this.ctx;
+    const kneeAngle = telemetryPoint.knee_angle || 0;
+    const torsoAngle = telemetryPoint.torso_angle || 0;
+
+    let kneeX, kneeY, torsoX, torsoY;
+
+    if (hasLandmarks && telemetryPoint.is_valid) {
+      const leftKnee = landmarks[25];
+      const rightKnee = landmarks[26];
+      const k = (rightKnee && rightKnee[2] > (leftKnee ? leftKnee[2] : 0)) ? rightKnee : leftKnee;
+      if (k && k[2] > 0.2) {
+        kneeX = rect.x + k[0] * rect.width + 14;
+        kneeY = rect.y + k[1] * rect.height - 10;
+      }
+
+      const leftHip = landmarks[23];
+      const rightHip = landmarks[24];
+      const h = (rightHip && rightHip[2] > (leftHip ? leftHip[2] : 0)) ? rightHip : leftHip;
+      if (h && h[2] > 0.2) {
+        torsoX = rect.x + h[0] * rect.width + 14;
+        torsoY = rect.y + h[1] * rect.height - 24;
+      }
+    } else {
+      // 若原视频已烧录骨架或无 landmark 坐标，浮动显示在画幅右上角
+      kneeX = this.displayWidth - 130;
+      kneeY = 48;
+      torsoX = this.displayWidth - 130;
+      torsoY = 78;
+    }
+
+    const drawPill = (text, x, y, bg, border, textColor) => {
+      ctx.save();
+      ctx.font = 'bold 12px monospace';
+      const paddingH = 8;
+      const pillH = 22;
+      const textMetrics = ctx.measureText(text);
+      const pillW = textMetrics.width + paddingH * 2;
+
+      // 视口边界夹持
+      const clampedX = Math.max(10, Math.min(this.displayWidth - pillW - 12, x));
+      const clampedY = Math.max(10, Math.min(this.displayHeight - pillH - 12, y));
+
+      ctx.fillStyle = bg;
+      ctx.strokeStyle = border;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(clampedX, clampedY, pillW, pillH, 4);
+      } else {
+        ctx.rect(clampedX, clampedY, pillW, pillH);
+      }
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = textColor;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, clampedX + paddingH, clampedY + pillH / 2);
+      ctx.restore();
+    };
+
+    if (kneeX !== undefined && kneeY !== undefined) {
+      const isDepthPass = kneeAngle <= 105.0;
+      const kneeBg = isDepthPass ? 'rgba(6, 78, 59, 0.9)' : 'rgba(15, 23, 42, 0.85)';
+      const kneeBorder = isDepthPass ? '#10b981' : 'rgba(56, 189, 248, 0.5)';
+      const kneeTextColor = isDepthPass ? '#6ee7b7' : '#38bdf8';
+      drawPill(`膝角: ${kneeAngle.toFixed(1)}°`, kneeX, kneeY, kneeBg, kneeBorder, kneeTextColor);
+    }
+
+    if (torsoX !== undefined && torsoY !== undefined) {
+      const isLeanWarn = torsoAngle > 45.0;
+      const torsoBg = isLeanWarn ? 'rgba(127, 29, 29, 0.9)' : 'rgba(15, 23, 42, 0.85)';
+      const torsoBorder = isLeanWarn ? '#ef4444' : 'rgba(251, 146, 60, 0.5)';
+      const torsoTextColor = isLeanWarn ? '#fca5a5' : '#fb923c';
+      drawPill(`前倾: ${torsoAngle.toFixed(1)}°`, torsoX, torsoY, torsoBg, torsoBorder, torsoTextColor);
+    }
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // DOM 元素引用
   const caseListEl = document.getElementById('case-list');
   const videoEl = document.getElementById('demo-video');
+  const videoContainer = document.getElementById('video-container');
+  const skeletonCanvas = document.getElementById('skeleton-canvas');
+  const toggleSkeletonCheckbox = document.getElementById('toggle-skeleton');
   const chartCanvas = document.getElementById('telemetry-chart');
   const tooltipEl = document.getElementById('chart-tooltip');
 
@@ -22,6 +273,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentCaseDescEl = document.getElementById('current-case-desc');
 
   const hudCountEl = document.getElementById('hud-count');
+  const hudCurKneeEl = document.getElementById('hud-cur-knee');
+  const hudCurTorsoEl = document.getElementById('hud-cur-torso');
   const hudFsmEl = document.getElementById('hud-fsm');
   const hudGateEl = document.getElementById('hud-gate');
 
@@ -73,11 +326,21 @@ document.addEventListener('DOMContentLoaded', () => {
   let datasetDemosData = [];
   let uploadedCasesData = [];
 
-  // 初始化图表组件
+  // 初始化骨架渲染器与图表组件
+  const skeletonRenderer = new SkeletonRenderer(skeletonCanvas, videoEl, videoContainer);
+
+  if (toggleSkeletonCheckbox) {
+    toggleSkeletonCheckbox.addEventListener('change', (e) => {
+      skeletonRenderer.isEnabled = e.target.checked;
+      syncPlaybackFrame();
+    });
+  }
+
   const chart = new window.TelemetryChart(chartCanvas, {
     tooltipElement: tooltipEl,
     onSeek: (targetTime) => {
       videoEl.currentTime = targetTime;
+      syncPlaybackFrame();
     },
   });
 
@@ -244,7 +507,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     evalFeedbackText.textContent = detail.summary_feedback || '暂无评估建议';
 
-    hudCountEl.textContent = detail.total_reps_completed;
+    hudCountEl.textContent = '0';
+    if (hudCurKneeEl) {
+      hudCurKneeEl.textContent = '--°';
+      hudCurKneeEl.style.color = '#38bdf8';
+    }
+    if (hudCurTorsoEl) {
+      hudCurTorsoEl.textContent = '--°';
+      hudCurTorsoEl.style.color = '#fb923c';
+    }
     hudFsmEl.textContent = 'STANDING';
     hudGateEl.className = 'badge badge-gate';
     hudGateEl.textContent = 'DRAWABLE';
@@ -308,7 +579,15 @@ document.addEventListener('DOMContentLoaded', () => {
     evalFeedbackText.textContent = detail.summary_feedback || '暂无评估建议';
 
     // 更新 HUD 初始值
-    hudCountEl.textContent = detail.actual_count;
+    hudCountEl.textContent = '0';
+    if (hudCurKneeEl) {
+      hudCurKneeEl.textContent = '--°';
+      hudCurKneeEl.style.color = '#38bdf8';
+    }
+    if (hudCurTorsoEl) {
+      hudCurTorsoEl.textContent = '--°';
+      hudCurTorsoEl.style.color = '#fb923c';
+    }
     hudFsmEl.textContent = 'STANDING';
     hudGateEl.className = 'badge badge-gate';
     hudGateEl.textContent = 'DRAWABLE';
@@ -357,24 +636,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 4. 视频播放事件监听与音画遥测联动
-  videoEl.addEventListener('timeupdate', () => {
+  // 4. 高频平滑姿态骨骼渲染、音画同步与实时双角/计数刷新引擎
+  let animFrameId = null;
+
+  function syncPlaybackFrame() {
     const curTime = videoEl.currentTime;
 
     // 格式化时间与帧序号 (基于 30fps)
     const mins = Math.floor(curTime / 60);
     const secs = (curTime % 60).toFixed(3).padStart(6, '0');
-    overlayTimeEl.textContent = `${String(mins).padStart(2, '0')}:${secs}`;
+    if (overlayTimeEl) overlayTimeEl.textContent = `${String(mins).padStart(2, '0')}:${secs}`;
 
     const approxFrame = Math.round(curTime * 30);
-    overlayFrameEl.textContent = `Frame: ${approxFrame}`;
+    if (overlayFrameEl) overlayFrameEl.textContent = `Frame: ${approxFrame}`;
 
     // 同步驱动图表时间游标
     chart.setCurrentTime(curTime);
 
-    // 同步实时 HUD 状态机与门控指示器
+    // 同步实时 HUD 状态机、门控、实时角度与实时计数
     if (telemetryData.length > 0) {
-      // 匹配当前时间最接近的遥测点
       let closest = telemetryData[0];
       let minDiff = Math.abs(closest.time_s - curTime);
       for (let i = 1; i < telemetryData.length; i++) {
@@ -382,19 +662,101 @@ document.addEventListener('DOMContentLoaded', () => {
         if (diff < minDiff) {
           minDiff = diff;
           closest = telemetryData[i];
+        } else if (diff > minDiff && telemetryData[i].time_s > curTime + 0.15) {
+          break;
         }
       }
 
       if (closest) {
-        hudFsmEl.textContent = closest.fsm_state;
-        if (!closest.is_valid) {
-          hudGateEl.className = 'badge badge-gate rejected';
-          hudGateEl.textContent = 'OUT_OF_FRAME';
-        } else {
-          hudGateEl.className = 'badge badge-gate';
-          hudGateEl.textContent = 'DRAWABLE';
+        // 1. 实时完成计数 (根据当前播放时序动态递增 0 -> 1 -> 2...)
+        if (hudCountEl) {
+          hudCountEl.textContent = closest.count !== undefined ? closest.count : 0;
         }
+
+        // 2. 实时膝关节屈曲角
+        if (hudCurKneeEl) {
+          hudCurKneeEl.textContent = `${closest.knee_angle.toFixed(1)}°`;
+          if (closest.knee_angle <= 105.0) {
+            hudCurKneeEl.style.color = '#10b981';
+            hudCurKneeEl.style.textShadow = '0 0 8px rgba(16, 185, 129, 0.4)';
+          } else {
+            hudCurKneeEl.style.color = '#38bdf8';
+            hudCurKneeEl.style.textShadow = '0 0 8px rgba(56, 189, 248, 0.4)';
+          }
+        }
+
+        // 3. 实时躯干前倾角
+        if (hudCurTorsoEl) {
+          hudCurTorsoEl.textContent = `${closest.torso_angle.toFixed(1)}°`;
+          if (closest.torso_angle > 45.0) {
+            hudCurTorsoEl.style.color = '#ef4444';
+            hudCurTorsoEl.style.textShadow = '0 0 8px rgba(239, 68, 68, 0.4)';
+          } else {
+            hudCurTorsoEl.style.color = '#fb923c';
+            hudCurTorsoEl.style.textShadow = '0 0 8px rgba(251, 146, 60, 0.4)';
+          }
+        }
+
+        // 4. 状态机阶段与门控状态
+        if (hudFsmEl) hudFsmEl.textContent = closest.fsm_state;
+        if (hudGateEl) {
+          if (!closest.is_valid) {
+            hudGateEl.className = 'badge badge-gate rejected';
+            hudGateEl.textContent = 'OUT_OF_FRAME';
+          } else {
+            hudGateEl.className = 'badge badge-gate';
+            hudGateEl.textContent = 'DRAWABLE';
+          }
+        }
+
+        // 5. 渲染画面骨架与画面内动态角度悬浮气泡
+        skeletonRenderer.render(closest);
       }
+    } else {
+      skeletonRenderer.clear();
+    }
+  }
+
+  function startPlaybackLoop() {
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    function loop() {
+      if (!videoEl.paused && !videoEl.ended) {
+        syncPlaybackFrame();
+        animFrameId = requestAnimationFrame(loop);
+      }
+    }
+    animFrameId = requestAnimationFrame(loop);
+  }
+
+  function stopPlaybackLoop() {
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    syncPlaybackFrame();
+  }
+
+  videoEl.addEventListener('play', () => {
+    skeletonRenderer.resize();
+    startPlaybackLoop();
+  });
+
+  videoEl.addEventListener('pause', () => {
+    stopPlaybackLoop();
+  });
+
+  videoEl.addEventListener('seeked', () => {
+    syncPlaybackFrame();
+  });
+
+  videoEl.addEventListener('loadeddata', () => {
+    skeletonRenderer.resize();
+    syncPlaybackFrame();
+  });
+
+  videoEl.addEventListener('timeupdate', () => {
+    if (videoEl.paused) {
+      syncPlaybackFrame();
     }
   });
 
@@ -406,8 +768,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   videoEl.addEventListener('ended', () => {
-    // 循环播放或重置到起始帧
+    stopPlaybackLoop();
     videoEl.currentTime = 0;
+    syncPlaybackFrame();
   });
 
   // 5. P4 答辩自包含验证矩阵模态窗口交互
@@ -745,9 +1108,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (e.code === 'ArrowRight') {
       e.preventDefault();
       videoEl.currentTime = Math.min(videoEl.duration || 10, videoEl.currentTime + 1 / 30);
+      syncPlaybackFrame();
     } else if (e.code === 'ArrowLeft') {
       e.preventDefault();
       videoEl.currentTime = Math.max(0, videoEl.currentTime - 1 / 30);
+      syncPlaybackFrame();
     }
   });
 

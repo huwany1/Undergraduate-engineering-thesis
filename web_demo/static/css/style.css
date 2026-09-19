@@ -535,6 +535,23 @@ body {
   font-family: monospace;
 }
 
+.hud-value.angle-val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-family: monospace;
+  transition: color 0.15s ease;
+}
+
+.hud-value.angle-val.knee {
+  color: #38bdf8;
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+}
+
+.hud-value.angle-val.torso {
+  color: #fb923c;
+  text-shadow: 0 0 8px rgba(251, 146, 60, 0.4);
+}
+
 .video-container {
   position: relative;
   background: #000000;
@@ -555,10 +572,29 @@ body {
   object-fit: contain;
 }
 
+#skeleton-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
 .video-overlay-info {
   position: absolute;
   top: 12px;
   left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.overlay-left-group {
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(6px);
   padding: 4px 10px;
@@ -569,7 +605,47 @@ body {
   display: flex;
   gap: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.overlay-right-group {
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.skeleton-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.skeleton-toggle:hover {
+  background: rgba(30, 41, 59, 0.9);
+  color: #ffffff;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.skeleton-toggle input[type="checkbox"] {
+  accent-color: #38bdf8;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+.skeleton-toggle input[type="checkbox"]:checked + .toggle-label {
+  color: #e2e8f0;
+  font-weight: 500;
 }
 
 /* 时序遥测图表 Panel */

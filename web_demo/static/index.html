@@ -128,8 +128,16 @@
           </div>
           <div class="hud-badges">
             <div class="hud-item">
-              <span class="hud-label">计数</span>
+              <span class="hud-label">实时计数</span>
               <span class="hud-value count-val" id="hud-count">0</span>
+            </div>
+            <div class="hud-item">
+              <span class="hud-label">当前膝角</span>
+              <span class="hud-value angle-val knee" id="hud-cur-knee">--°</span>
+            </div>
+            <div class="hud-item">
+              <span class="hud-label">当前前倾</span>
+              <span class="hud-value angle-val torso" id="hud-cur-torso">--°</span>
             </div>
             <div class="hud-item">
               <span class="hud-label">状态机阶段</span>
@@ -142,13 +150,22 @@
           </div>
         </div>
 
-        <div class="video-container">
+        <div class="video-container" id="video-container">
           <video id="demo-video" controls preload="auto" playsinline>
             您的浏览器不支持视频播放。
           </video>
+          <canvas id="skeleton-canvas"></canvas>
           <div class="video-overlay-info" id="video-overlay-info">
-            <span id="overlay-time">00:00.000</span>
-            <span id="overlay-frame">Frame: 0</span>
+            <div class="overlay-left-group">
+              <span id="overlay-time">00:00.000</span>
+              <span id="overlay-frame">Frame: 0</span>
+            </div>
+            <div class="overlay-right-group">
+              <label class="skeleton-toggle" title="开关画面骨骼关键点与实时角度标注">
+                <input type="checkbox" id="toggle-skeleton" checked>
+                <span class="toggle-label">实时骨架与角度</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>

@@ -207,6 +207,7 @@ class DemoService:
                         "event": record.get("event", "NONE"),
                         "is_valid": kinematics.get("is_valid", True),
                         "count": record.get("cumulative_rep_count", 0),
+                        "landmarks": record.get("landmarks", []),
                     })
                 except Exception:
                     continue
@@ -272,6 +273,7 @@ class DemoService:
                             "event": rec.get("event", "NONE"),
                             "is_valid": kine.get("is_valid", True),
                             "count": rec.get("cumulative_rep_count", 0),
+                            "landmarks": rec.get("landmarks", []),
                         })
 
             data["telemetry"] = telemetry
