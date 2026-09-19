@@ -14,6 +14,7 @@ from typing import List, Dict, Any, Optional
 import cv2
 import numpy as np
 
+import platform
 from .contracts import (
     TestCaseId,
     KeyframeEventType,
@@ -33,6 +34,27 @@ class EvidencePackager:
 
     def __init__(self, renderer: Optional[P4OverlayRenderer] = None):
         self.renderer = renderer or P4OverlayRenderer()
+
+    @staticmethod
+    def _create_compatible_writer(filepath: Path, fps: float, width: int, height: int) -> cv2.VideoWriter:
+        """创建现代浏览器及跨平台兼容的视频写入器"""
+        filepath_str = str(filepath)
+        if platform.system() == "Windows":
+            try:
+                w = cv2.VideoWriter(filepath_str, cv2.CAP_MSMF, cv2.VideoWriter_fourcc(*"H264"), fps, (width, height))
+                if w.isOpened():
+                    return w
+            except Exception:
+                pass
+
+        try:
+            w = cv2.VideoWriter(filepath_str, cv2.CAP_FFMPEG, cv2.VideoWriter_fourcc(*"avc1"), fps, (width, height))
+            if w.isOpened():
+                return w
+        except Exception:
+            pass
+
+        return cv2.VideoWriter(filepath_str, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
 
     @staticmethod
     def _compute_sha256(file_path: Path) -> str:
@@ -139,8 +161,7 @@ class EvidencePackager:
             if generate_video:
                 video_filename = f"{spec.case_id.value}_annotated.mp4"
                 video_path = replays_dir / video_filename
-                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                writer = cv2.VideoWriter(str(video_path), fourcc, 30.0, (self.renderer.width, self.renderer.height))
+                writer = self._create_compatible_writer(video_path, 30.0, self.renderer.width, self.renderer.height)
                 if writer.isOpened():
                     try:
                         # 采样关键帧写入视频 (或者逐帧写入)

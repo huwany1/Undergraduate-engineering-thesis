@@ -10,6 +10,18 @@ import webbrowser
 import socket
 from pathlib import Path
 
+# 控制台编码安全配置
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # 确保项目根目录在 sys.path 中
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -40,7 +52,7 @@ def main():
     url = f"http://{args.host}:{actual_port}/"
 
     print("=" * 72)
-    print("  🏋️ 深蹲动作质量辅助评估 Web 交互演示系统已就绪")
+    print("  [DEMO] 深蹲动作质量辅助评估 Web 交互演示系统已就绪")
     print("=" * 72)
     print(f"  服务访问地址: {url}")
     print(f"  工程基线口径: P0-SQUAT-SIDE-OFFLINE-v1.0")

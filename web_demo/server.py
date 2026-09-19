@@ -159,16 +159,36 @@ class WebDemoRequestHandler(SimpleHTTPRequestHandler):
                 self.copyfile(f, self.wfile)
 
     def _serve_range(self, file_path: Path, file_size: int, content_type: str, range_header: str):
-        """解析 Range 标头并以 206 Partial Content 回应数据切片"""
-        match = re.match(r"bytes=(\d+)-(\d*)", range_header)
-        if not match:
-            self.send_error(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
-            return
+        """
+        解析 HTTP Range 标头并以 206 Partial Content 回应数据切片。
+        全面兼容 RFC 7233 标准：
+        1. 标准范围: bytes=start-end (例如 bytes=0-1024)
+        2. 开口范围: bytes=start- (例如 bytes=1024-)
+        3. 后缀范围: bytes=-suffix (例如 bytes=-4096，现代浏览器读取 MP4 尾部 moov 索引的关键)
+        """
+        range_str = range_header.strip()
+        suffix_match = re.match(r"^bytes=-(\d+)$", range_str)
+        standard_match = re.match(r"^bytes=(\d+)-(\d*)$", range_str)
 
-        start = int(match.group(1))
-        end = int(match.group(2)) if match.group(2) else file_size - 1
-
-        if start >= file_size or end >= file_size or start > end:
+        if suffix_match:
+            suffix_len = int(suffix_match.group(1))
+            if suffix_len <= 0:
+                self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                self.send_header("Content-Range", f"bytes */{file_size}")
+                self.end_headers()
+                return
+            start = max(0, file_size - suffix_len)
+            end = file_size - 1
+        elif standard_match:
+            start = int(standard_match.group(1))
+            end_str = standard_match.group(2)
+            end = int(end_str) if end_str else file_size - 1
+            if start >= file_size or end >= file_size or start > end:
+                self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                self.send_header("Content-Range", f"bytes */{file_size}")
+                self.end_headers()
+                return
+        else:
             self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
             self.send_header("Content-Range", f"bytes */{file_size}")
             self.end_headers()

@@ -208,6 +208,18 @@ def test_media_video_streaming_and_range_requests(web_server):
         data = resp.read()
         assert len(data) == 1024
 
+    # 3. HTTP 206 Suffix Range 请求 (bytes=-suffix，用于读取 MP4 尾部 moov 索引元数据)
+    req_suffix = urllib.request.Request(video_url, headers={"Range": "bytes=-512"})
+    with urllib.request.urlopen(req_suffix) as resp:
+        assert resp.status == 206
+        assert resp.headers.get("Content-Type") == "video/mp4"
+        expected_start = total_size - 512
+        expected_end = total_size - 1
+        assert resp.headers.get("Content-Range") == f"bytes {expected_start}-{expected_end}/{total_size}"
+        assert int(resp.headers.get("Content-Length")) == 512
+        data_suffix = resp.read()
+        assert len(data_suffix) == 512
+
 
 def test_media_screenshot_delivery(web_server):
     img_url = f"{web_server}/api/media/screenshots/TC_01_PERFECT_SQUAT_bottom_inflection_f037.png"

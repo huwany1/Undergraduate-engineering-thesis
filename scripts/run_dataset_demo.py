@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import cv2
 import numpy as np
+import platform
 
 # 控制台编码安全配置
 if hasattr(sys.stdout, "reconfigure"):
@@ -55,6 +56,30 @@ OUTPUT_DIR = REPO_ROOT / "reports" / "dataset_demo"
 MODEL_PATH = REPO_ROOT / "models" / "pose_landmarker_full.task"
 
 
+def create_compatible_video_writer(filepath: Path, fps: float, width: int, height: int) -> cv2.VideoWriter:
+    """
+    创建与现代浏览器 (Chrome/Edge/Safari/Firefox) 及多操作系统完全兼容的视频写入器。
+    Windows 首选 Media Foundation H264，Linux/macOS 首选 FFMPEG avc1，降级回退支持 mp4v。
+    """
+    filepath_str = str(filepath)
+    if platform.system() == "Windows":
+        try:
+            w = cv2.VideoWriter(filepath_str, cv2.CAP_MSMF, cv2.VideoWriter_fourcc(*"H264"), fps, (width, height))
+            if w.isOpened():
+                return w
+        except Exception:
+            pass
+
+    try:
+        w = cv2.VideoWriter(filepath_str, cv2.CAP_FFMPEG, cv2.VideoWriter_fourcc(*"avc1"), fps, (width, height))
+        if w.isOpened():
+            return w
+    except Exception:
+        pass
+
+    return cv2.VideoWriter(filepath_str, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
+
+
 def render_enhanced_demo_video(
     input_video_path: Path,
     output_video_path: Path,
@@ -77,8 +102,7 @@ def render_enhanced_demo_video(
         fps = 30.0
 
     output_video_path.parent.mkdir(parents=True, exist_ok=True)
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_video_path), fourcc, fps, (width, height))
+    writer = create_compatible_video_writer(output_video_path, fps, width, height)
 
     record_map = {r["frame_index"]: r for r in p2_records}
     keyframes = []

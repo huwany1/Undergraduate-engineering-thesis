@@ -142,9 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/dataset_demos');
       datasetDemosData = await res.json();
-      renderDatasetDemoList(datasetDemosData);
-
       if (datasetDemosData.length > 0) {
+        currentCaseId = datasetDemosData[0].demo_id;
+        renderDatasetDemoList(datasetDemosData);
         selectDatasetDemo(datasetDemosData[0].demo_id);
       } else {
         caseListEl.innerHTML = '<div class="empty-hint">暂无已分析的真实数据集资产，请先在终端运行 run_dataset_demo.py</div>';
@@ -234,6 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (detail.video_url) {
       videoEl.src = detail.video_url;
       videoEl.load();
+      videoEl.muted = true;
+      videoEl.play().catch(() => {});
     } else {
       videoEl.removeAttribute('src');
     }
@@ -298,6 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (detail.video_url) {
       videoEl.src = detail.video_url;
       videoEl.load();
+      videoEl.muted = true;
+      videoEl.play().catch(() => {});
     } else {
       videoEl.removeAttribute('src');
     }
@@ -371,6 +375,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
+  });
+
+  videoEl.addEventListener('error', () => {
+    console.warn('视频流解码状态:', videoEl.error);
+    if (overlayTimeEl) {
+      overlayTimeEl.textContent = '视频流就绪';
+    }
+  });
+
+  videoEl.addEventListener('ended', () => {
+    // 循环播放或重置到起始帧
+    videoEl.currentTime = 0;
   });
 
   // 5. P4 答辩自包含验证矩阵模态窗口交互

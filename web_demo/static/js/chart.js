@@ -201,7 +201,10 @@ class TelemetryChart {
     }
 
     // 3. 绘制膝关节角度曲线 (Knee Angle - Cyan)
-    ctx.lineWidth = 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(6, 182, 212, 0.45)';
+    ctx.shadowBlur = 4;
+    ctx.lineWidth = 2.5;
     ctx.strokeStyle = '#06b6d4';
     ctx.beginPath();
     let started = false;
@@ -216,8 +219,13 @@ class TelemetryChart {
       }
     }
     ctx.stroke();
+    ctx.restore();
 
     // 4. 绘制躯干前倾角曲线 (Torso Angle - Amber)
+    ctx.save();
+    ctx.shadowColor = 'rgba(245, 158, 11, 0.45)';
+    ctx.shadowBlur = 4;
+    ctx.lineWidth = 2.5;
     ctx.strokeStyle = '#f59e0b';
     ctx.beginPath();
     started = false;
@@ -232,6 +240,7 @@ class TelemetryChart {
       }
     }
     ctx.stroke();
+    ctx.restore();
 
     // 5. 绘制当前播放位置的垂直时间游标 (Red/White Playhead)
     const playheadX = getX(Math.min(this.currentTime, this.duration));
